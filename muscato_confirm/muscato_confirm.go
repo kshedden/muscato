@@ -314,7 +314,7 @@ E:
 }
 
 func setupLog(win int) {
-	logname := path.Join(tmpdir, fmt.Sprintf("mergebloom_%d.log", win))
+	logname := path.Join(tmpdir, fmt.Sprintf("muscato_confirm_%d.log", win))
 	fid, err := os.Create(logname)
 	if err != nil {
 		panic(err)

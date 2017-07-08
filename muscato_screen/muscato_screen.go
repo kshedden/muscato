@@ -416,7 +416,7 @@ func search() {
 }
 
 func setupLogger() {
-	logname := path.Join(tmpdir, "bloom.log")
+	logname := path.Join(tmpdir, "muscato_screen.log")
 	logfid, err := os.Create(logname)
 	if err != nil {
 		panic(err)

@@ -82,3 +82,40 @@ tab delimited file with the following columns:
 8. Read identifier
 
 The tool also generates a fastq file containing all non-matching reads.
+
+Muscato uses a temporary directory for intermediate and logging files,
+by default named `tmp/######`, where ###### is a integer id generated
+by the tool.  This directory can be safely deleted after the results
+are obtained.
+
+__Logging__
+
+Several log files are written to the temporary directory discussed
+above.  High-level logging messages are written to 'muscato.log'.
+More detailed logging information written to logs specific to each
+component of the tool, e.g. 'muscato_screen.log'.
+
+__Testing__
+
+There is currently a small collection of unit tests in the `tests`
+directory.  To run the tests, enter the test directory and type:
+
+```
+go run test.go
+```
+
+Any errors will be printed to the terminal.  Detailed results of the
+tests are written to the file `test.log`.
+
+__Dependencies__
+
+Muscato has the following dependencies, which should be automatically
+installed by 'go get' when installing muscato, as described above
+('sztool' must be installed directly).
+
+github.com/kshedden/sztool
+github.com/chmduquesne/rollinghash
+github.com/golang-collections/go-datastructures/bitarray
+github.com/golang/snappy
+github.com/willf/bloom
+github.com/scipipe/scipipe

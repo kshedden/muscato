@@ -90,7 +90,7 @@ func source() {
 }
 
 func setupLog() {
-	logname := path.Join(tmpdir, "prep_reads.log")
+	logname := path.Join(tmpdir, "muscato_prep_reads.log")
 	fid, err := os.Create(logname)
 	if err != nil {
 		panic(err)

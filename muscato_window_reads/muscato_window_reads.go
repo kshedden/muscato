@@ -33,7 +33,7 @@ var (
 )
 
 func setupLog() {
-	logname := path.Join(tmpdir, "window_reads.log")
+	logname := path.Join(tmpdir, "muscato_window_reads.log")
 	fid, err := os.Create(logname)
 	if err != nil {
 		panic(err)

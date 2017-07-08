@@ -673,7 +673,7 @@ func joinReadNames() {
 }
 
 func setupLog() {
-	logname := path.Join(tmpdir, "run.log")
+	logname := path.Join(tmpdir, "muscato.log")
 	fid, err := os.Create(logname)
 	if err != nil {
 		panic(err)

@@ -239,7 +239,7 @@ func targets(genefile string, rev bool) {
 }
 
 func setupLog() {
-	fid, err := os.Create("prep_targets.log")
+	fid, err := os.Create("muscato_prep_targets.log")
 	if err != nil {
 		panic(err)
 	}

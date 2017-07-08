@@ -1,1 +1,0 @@
-{"ReadFileName": "/16S_50_3.fastq", "GeneFileName=16S_NCBI.txt.sz", "GeneIdFileName=16S_NCBI_ids.txt.sz" "Windows": [0,5,15,25,34], "WindowWidth":15, "BloomSize": 4000000000, "NumHash": 20, "PMatch", 0.94, "MinDinuc": 5, "MinReadLength": 50, "MaxMatches", 1000, "MaxMergeProcs": 5, "MaxReadLength": 300, "MatchMode": "best", "MMTol": 1}

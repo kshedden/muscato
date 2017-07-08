@@ -1,0 +1,42 @@
+[[Test]]
+Name = "muscato_prep_targets 1 (fasta input)"
+Base = "data/prep_targets/00"
+Command = "muscato_prep_targets"
+Args = ["genes.fasta"]
+Files = [["genes_ids.txt.sz", "genes_ids_e.txt"],
+         ["genes.txt.sz", "genes_e.txt"]]
+
+[[Test]]
+Name = "muscato_prep_targets 2 (fasta input, reversed)"
+Base = "data/prep_targets/01"
+Command = "muscato_prep_targets"
+Opts = ["-rev"]
+Args = ["genes.fasta"]
+Files = [["genes_ids.txt.sz", "genes_ids_e.txt"],
+         ["genes.txt.sz", "genes_e.txt"]]
+
+[[Test]]
+Name = "muscato_prep_targets 3 (text input)"
+Base = "data/prep_targets/02"
+Command = "muscato_prep_targets"
+Args = ["genes.txt"]
+Files = [["genes_ids.txt.sz", "genes_ids_e.txt"],
+         ["genes.txt.sz", "genes_e.txt"]]
+
+[[Test]]
+Name = "muscato_prep_targets 4 (text input, reversed)"
+Base = "data/prep_targets/03"
+Command = "muscato_prep_targets"
+Opts = ["-rev"]
+Args = ["genes.txt"]
+Files = [["genes_ids.txt.sz", "genes_ids_e.txt"],
+         ["genes.txt.sz", "genes_e.txt"]]
+
+[[Test]]
+Name = "muscato 1"
+Base = "data/muscato/00"
+Command = "muscato"
+Opts = ["-ConfigFileName=data/muscato/00/config.json"]
+Files = [["result.txt", "result_e.txt"],
+         ["result.nonmatch.txt.fastq", "result.nonmatch_e.txt"]]
+Remove = ["tmp"]

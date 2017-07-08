@@ -1,4 +1,4 @@
-__Muscato (Multi-Genome Scalable Alignment Tool)__
+### Muscato (Multi-Genome Scalable Alignment Tool)
 
 Muscato is a software tool for matching a collection of sequence reads
 into a collection of target sequences (e.g. gene sequences).  The

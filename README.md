@@ -15,7 +15,7 @@ utilities](http://www.gnu.org/software/coreutils/coreutils.html).  It
 should run on any Unix-like system on which the [Go
 tool](https://golang.org/dl) and Gnu utilities are available.
 
-In most cases installation of Muscato should only require invoking the
+In most cases, installation of Muscato should only require invoking the
 following commands in the shell:
 
 ```
@@ -92,7 +92,7 @@ __Logging__
 
 Several log files are written to the temporary directory discussed
 above.  High-level logging messages are written to 'muscato.log'.
-More detailed logging information written to logs specific to each
+More detailed logging information is written to logs specific to each
 component of the tool, e.g. 'muscato_screen.log'.
 
 __Testing__
@@ -124,3 +124,8 @@ installed by `go get` when installing muscato, as described above
 [github.com/willf/bloom](http://github.com/willf/bloom)
 
 [github.com/scipipe/scipipe](http://github.com/scipipe/scipipe)
+
+__Issues and feedback__
+
+Please file an [issue](https://github.com/kshedden/muscato/issues) if
+you encounter any difficulties.

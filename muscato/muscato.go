@@ -811,6 +811,10 @@ func checkArgs() {
 		os.Stderr.WriteString("GeneIdFileName not provided, run 'muscato --help for more information.\n\n")
 		os.Exit(1)
 	}
+	if config.ResultsFileName == "" {
+		config.ResultsFileName = "results.txt"
+		os.Stderr.WriteString("ResultsFileName not provided, defaulting to 'results.txt'\n\n")
+	}
 	if len(config.Windows) == 0 {
 		os.Stderr.WriteString("Windows not provided, run 'muscato --help for more information.\n\n")
 		os.Exit(1)

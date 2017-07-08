@@ -1,7 +1,7 @@
 __Muscato (Multi-Genome Scalable Alignment Tool)__
 
 Muscato is a software tool for matching a collection of sequence reads
-into a collection of target sequences, e.g. gene sequences.  The
+into a collection of target sequences (e.g. gene sequences).  The
 approach effectively scales to hundreds of millions of reads and
 target sequences.  A major goal of Muscato is to perform exhaustive
 multi-mapping, meaning that each read is mapped to as many gene
@@ -16,21 +16,23 @@ should run on any Unix-like system on which the [Go
 tool](https://golang.org/dl) and Gnu utilities are available.
 
 In most cases installation of Muscato should only require invoking the
-following command in the shell:
+following commands in the shell:
 
 ```
 go get github.com/kshedden/muscato/...
+
+go get github.com/kshedden/sztool/...
 ```
 
 The executables for muscato and its auxiliary scripts should appear in
 your GOBIN directory (usually ${HOME}/go/bin if installed in a user
-account).  When invoking muscato in the shell, you will need to use
-its full path, or add GOBIN to your PATH environment variable.
+account).  You will need to add GOBIN to your PATH environment
+variable when using the tool.
 
 __Basic usage__
 
 Before running Muscato, you should prepare a version of your target
-sequence file using the `muscato_prep_targets` script.  If your
+sequence file using the `muscato_prep_targets` program.  If your
 targets are in a fasta format file, you can simply run:
 
 ```
@@ -38,9 +40,9 @@ muscato_prep_targets genes.fasta
 ```
 
 Instead of using a fasta input file, it is also possible to use a
-plain text file with the format `id<tab>sequence<newline>`.  The
-sequence should consist of the upper-case characters A, T, G, and C.
-Any other letters are replaced with 'X'.
+plain text file with the format `id<tab>sequence<newline>` for each
+target sequence.  The sequence should consist of the upper-case
+characters A, T, G, and C.  Any other letters are replaced with 'X'.
 
 The `muscato_prep_targets` script accepts a `-rev` flag in which
 reverse complement target sequences are added to the database along
@@ -57,8 +59,11 @@ Note that the target files `genes.fasta.sz` and `genes_ids.sz` were
 produced by the `muscato_prep_targets` script, to be run as shown
 above.
 
+Many other command-line flags are available, run `muscato --help` for
+more information.
+
 The results by default are written to a file names `results.txt`, a
-tab delimited file with columns:
+tab delimited file with the following columns:
 
 1. Read sequence
 

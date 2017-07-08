@@ -110,12 +110,17 @@ tests are written to the file `test.log`.
 __Dependencies__
 
 Muscato has the following dependencies, which should be automatically
-installed by 'go get' when installing muscato, as described above
-('sztool' must be installed directly).
+installed by `go get` when installing muscato, as described above
+(sztool must be installed directly).
 
 github.com/kshedden/sztool
+
 github.com/chmduquesne/rollinghash
+
 github.com/golang-collections/go-datastructures/bitarray
+
 github.com/golang/snappy
+
 github.com/willf/bloom
+
 github.com/scipipe/scipipe

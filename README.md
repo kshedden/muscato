@@ -113,14 +113,14 @@ Muscato has the following dependencies, which should be automatically
 installed by `go get` when installing muscato, as described above
 (sztool must be installed directly).
 
-[github.com/kshedden/sztool](github.com/kshedden/sztool)
+[github.com/kshedden/sztool](http://github.com/kshedden/sztool)
 
-[github.com/chmduquesne/rollinghash](github.com/chmduquesne/rollinghash)
+[github.com/chmduquesne/rollinghash](http://github.com/chmduquesne/rollinghash)
 
-[github.com/golang-collections/go-datastructures/bitarray](github.com/golang-collections/go-datastructures/bitarray)
+[github.com/golang-collections/go-datastructures/bitarray](http://github.com/golang-collections/go-datastructures/bitarray)
 
-[github.com/golang/snappy](github.com/golang/snappy)
+[github.com/golang/snappy](http://github.com/golang/snappy)
 
-[github.com/willf/bloom](github.com/willf/bloom)
+[github.com/willf/bloom](http://github.com/willf/bloom)
 
-[github.com/scipipe/scipipe](github.com/scipipe/scipipe)
+[github.com/scipipe/scipipe](http://github.com/scipipe/scipipe)

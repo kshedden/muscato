@@ -62,7 +62,7 @@ above.
 Many other command-line flags are available, run `muscato --help` for
 more information.
 
-The results by default are written to a file names `results.txt`, a
+The results by default are written to a file named `results.txt`, a
 tab delimited file with the following columns:
 
 1. Read sequence
@@ -77,7 +77,7 @@ tab delimited file with the following columns:
 
 6. Target sequence length
 
-7. Number of copies of read in read pool
+7. Number of copies of the read in the read pool
 
 8. Read identifier
 

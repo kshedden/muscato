@@ -117,7 +117,7 @@ installed by `go get` when installing muscato, as described above
 
 [github.com/chmduquesne/rollinghash](http://github.com/chmduquesne/rollinghash)
 
-[github.com/golang-collections/go-datastructures/bitarray](http://github.com/golang-collections/go-datastructures/bitarray)
+[github.com/golang-collections/go-datastructures/bitarray](https://github.com/golang-collections/go-datastructures/tree/master/bitarray)
 
 [github.com/golang/snappy](http://github.com/golang/snappy)
 

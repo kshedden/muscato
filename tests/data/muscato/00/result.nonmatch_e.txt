@@ -1,0 +1,12 @@
+>read6_nonmatching
+GCCGCTACGA
++
+!!!!!!!!!!
+>read4_nonmatching
+GTACGCATCC
++
+!!!!!!!!!!
+>read5_nonmatching
+TTATTATGCG
++
+!!!!!!!!!!

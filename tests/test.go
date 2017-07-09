@@ -1,4 +1,7 @@
-// test is a script that runs a series of unit tests on the Muscato code base.
+// Copyright 2017, Kerby Shedden and the Muscato contributors.
+
+// test is a script that runs a series of unit tests on the Muscato
+// code base.
 //
 // To run the tests, use:
 //

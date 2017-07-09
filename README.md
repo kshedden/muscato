@@ -1,8 +1,8 @@
 ### Muscato (Multi-Genome Scalable Alignment Tool)
 
-Muscato is a software tool for matching a collection of sequence reads
+Muscato is a software tool for matching a collection of read sequences
 into a collection of target sequences (e.g. gene sequences).  The
-approach effectively scales to hundreds of millions of reads and
+approach scales efficiently to hundreds of millions of reads and
 target sequences.  A major goal of Muscato is to perform exhaustive
 multi-mapping, meaning that each read is mapped to as many gene
 sequences as possible, subject to specified match quality constraints.
@@ -15,7 +15,7 @@ utilities](http://www.gnu.org/software/coreutils/coreutils.html).  It
 should run on any Unix-like system on which the [Go
 tool](https://golang.org/dl) and Gnu utilities are available.
 
-In most cases, installation of Muscato should only require invoking the
+In most cases, installation of Muscato should only require running the
 following commands in the shell:
 
 ```

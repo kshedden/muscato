@@ -5,7 +5,7 @@
 // gene sequences.  The results of the screen may contain false
 // positives, but will not contain any false negatives.
 //
-// The approach is to use a Bloom-filter to sketch the reads based on
+// The approach is to use a Bloom filter to sketch the reads based on
 // the subsequences that appear at defined offsets within the reads.
 // For example, if position 10 is an offset and we are looking at
 // subequences of width 15, then the read subsequences from position

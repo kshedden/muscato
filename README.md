@@ -24,10 +24,18 @@ go get github.com/kshedden/muscato/...
 go get github.com/kshedden/sztool/...
 ```
 
-The executables for muscato and its auxiliary scripts should appear in
+The executables for Muscato and its auxiliary scripts should appear in
 your GOBIN directory (usually ${HOME}/go/bin if installed in a user
 account).  You will need to add GOBIN to your PATH environment
-variable when using the tool.
+variable when using Muscato.  If you are using the Bash shell enter
+the following lines at the shell prompt, or add them to your .bashrc
+file to make the changes permanent.
+
+```
+export GOPATH=${HOME}/go
+export GOBIN=${GOPATH}/bin
+export PATH=${GOBIN}:${PATH}
+```
 
 __Basic usage__
 

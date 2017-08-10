@@ -215,6 +215,8 @@ func checkWin(ix []int, iw []uint64, hashes []rollinghash.Hash32) []int {
 // process one target sequence, runs concurrently with main loop.
 func processseq(seq []byte, genenum int) {
 
+	defer func() { <-limit }()
+
 	hashes := make([]rollinghash.Hash32, config.NumHash)
 	for j := range hashes {
 		hashes[j] = buzhash32.NewFromUint32Array(tables[j])
@@ -306,7 +308,6 @@ func processseq(seq []byte, genenum int) {
 			}
 		}
 	}
-	<-limit
 }
 
 // Retrieve the results and write to disk

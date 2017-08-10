@@ -1,19 +1,21 @@
 all: muscato muscato_screen muscato_confirm muscato_prep_reads muscato_prep_targets muscato_window_reads
 
-muscato: muscato/muscato.go
+.PHONY: muscato muscato_screen muscato_confirm muscato_prep_reads muscato_prep_targets muscato_window_reads
+
+muscato:
 	go install ./muscato
 
-muscato_screen: muscato_screen/muscato_screen.go
+muscato_screen:
 	go install ./muscato_screen
 
-muscato_confirm: muscato_confirm/muscato_confirm.go
+muscato_confirm:
 	go install ./muscato_confirm
 
-muscato_prep_reads: muscato_prep_reads/muscato_prep_reads.go
+muscato_prep_reads:
 	go install ./muscato_prep_reads
 
-muscato_prep_targets: muscato_prep_targets/muscato_prep_targets.go
+muscato_prep_targets:
 	go install ./muscato_prep_targets
 
-muscato_window_reads: muscato_window_reads/muscato_window_reads.go
+muscato_window_reads:
 	go install ./muscato_window_reads

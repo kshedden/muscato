@@ -899,29 +899,25 @@ func setupEnvs() {
 
 // Create the directory for all temporary files, if needed
 func makeTemp() {
-	var d string
-	var err error
-	d, basename = path.Split(config.ReadFileName)
 	if config.TempDir == "" {
-		d = path.Join(d, "tmp")
-		err = os.MkdirAll(d, 0755)
+		err := os.MkdirAll("tmp", 0755)
 		if err != nil {
 			panic(err)
 		}
-		tmpdir, err = ioutil.TempDir(d, "")
+		tmpdir, err = ioutil.TempDir("tmp", "")
 		if err != nil {
 			panic(err)
 		}
 	} else {
 		tmpdir = config.TempDir
-		err = os.MkdirAll(tmpdir, 0755)
+		err := os.MkdirAll(tmpdir, 0755)
 		if err != nil {
 			panic(err)
 		}
 	}
 
 	pipedir = path.Join(tmpdir, "pipes")
-	err = os.MkdirAll(pipedir, 0755)
+	err := os.MkdirAll(pipedir, 0755)
 	if err != nil {
 		panic(err)
 	}

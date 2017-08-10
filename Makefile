@@ -7,7 +7,7 @@ muscato_screen: muscato_screen/muscato_screen.go
 	go install ./muscato_screen
 
 muscato_confirm: muscato_confirm/muscato_confirm.go
-	go install ./muscato confirm
+	go install ./muscato_confirm
 
 muscato_prep_reads: muscato_prep_reads/muscato_prep_reads.go
 	go install ./muscato_prep_reads

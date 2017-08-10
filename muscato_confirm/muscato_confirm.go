@@ -224,6 +224,11 @@ type qrect struct {
 	gob      []byte
 }
 
+// searchpairs considers all reads and all genes that share a given
+// k-mer (the k-mer must appear at a fixed poition in the reads, but
+// can appear anywhere in the genes).  Each read x gene pair is
+// evaluated for agreement.  The results are communicated through a
+// channel, so that this function can be run concurrently.
 func searchpairs(source, match []*rec, limit chan bool) {
 
 	defer func() { <-limit }()

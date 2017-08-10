@@ -93,6 +93,11 @@ var (
 	logger      *log.Logger
 )
 
+const (
+	sortbuf string = "-S 2G"
+	sortpar string = "--parallel=8"
+)
+
 func pipename() string {
 	f := fmt.Sprintf("%09d", rand.Int63()%1e9)
 	return path.Join(pipedir, f)
@@ -134,7 +139,7 @@ func sortSource() {
 	cmd0.Env = os.Environ()
 	cmd0.Stderr = os.Stderr
 
-	cmd1 := exec.Command("sort", "-S", "2G", "--parallel=8")
+	cmd1 := exec.Command("sort", sortbuf, sortpar)
 	cmd1.Env = os.Environ()
 	cmd1.Stderr = os.Stderr
 	var err error
@@ -266,7 +271,7 @@ func sortWindows() {
 		fname := path.Join(tmpdir, f)
 		pname1 := pipefromsz(fname)
 
-		cmd1 := exec.Command("sort", "-S", "2G", "--parallel=8", "-k1", pname1)
+		cmd1 := exec.Command("sort", sortbuf, sortpar, "-k1", pname1)
 		cmd1.Env = os.Environ()
 		cmd1.Stderr = os.Stderr
 
@@ -324,7 +329,7 @@ func sortBloom() {
 		fname := path.Join(tmpdir, f)
 		pname1 := pipefromsz(fname)
 
-		cmd1 := exec.Command("sort", "-S", "2G", "--parallel=8", "-k1", pname1)
+		cmd1 := exec.Command("sort", sortbuf, sortpar, "-k1", pname1)
 		cmd1.Env = os.Environ()
 		cmd1.Stderr = os.Stderr
 
@@ -399,7 +404,13 @@ func confirm() {
 	logger.Printf("match confirmation done")
 }
 
+// writebest accepts a set of lines (lines), which have also been
+// broken into fields (bfr).  Every line represents a candidate match.
+// The matches with at most mmtol more matches than the best match are
+// written to the io writer (wtr).  ibuf is provided workspace.
 func writebest(lines []string, bfr [][]string, wtr io.Writer, ibuf []int, mmtol int) []int {
+
+	// Find the best fit, determine the number of mismatches for each sequence.
 	ibuf = ibuf[0:0]
 	best := -1
 	for _, x := range bfr {
@@ -413,6 +424,7 @@ func writebest(lines []string, bfr [][]string, wtr io.Writer, ibuf []int, mmtol 
 		ibuf = append(ibuf, y)
 	}
 
+	// Output the sequences with acceptable number of mismatches.
 	for i, x := range lines {
 		if ibuf[i] <= best+mmtol {
 			_, err := wtr.Write([]byte(x))
@@ -436,7 +448,7 @@ func combineWindows() {
 	mmtol := config.MMTol
 
 	// Pipe everything into one sort/unique
-	c0 := exec.Command("sort", "-S", "2G", "--parallel=8", "-u", "-")
+	c0 := exec.Command("sort", sortbuf, sortpar, "-u", "-")
 	c0.Env = os.Environ()
 	c0.Stderr = os.Stderr
 	cmds := []*exec.Cmd{c0}
@@ -449,6 +461,7 @@ func combineWindows() {
 	}
 	wtr := snappy.NewBufferedWriter(out)
 
+	// TODO: Add Bloom filter here to screen out duplicates
 	var fd []io.Reader
 	for j := 0; j < len(config.Windows); j++ {
 		f := fmt.Sprintf("rmatch_%d.txt.sz", j)
@@ -548,7 +561,7 @@ func sortByGeneId() {
 	cmd1.Env = os.Environ()
 	cmd1.Stderr = os.Stderr
 	// k5 is position of gene id
-	cmd2 := exec.Command("sort", "-S", "2G", "--parallel=8", "-k5", "-")
+	cmd2 := exec.Command("sort", sortbuf, sortpar, "-k5", "-")
 	cmd2.Env = os.Environ()
 	cmd2.Stderr = os.Stderr
 	var err error
@@ -649,7 +662,7 @@ func joinReadNames() {
 	rd.SetPathStatic("rd", path.Join(pipedir, "jrn_rd.txt"))
 
 	// Sort the matches
-	sm := scipipe.NewProc("sm", "sort -S 2G --parallel=8 -k1 {i:in} > {os:sort}")
+	sm := scipipe.NewProc("sm", fmt.Sprintf("sort %s %s -k1 {i:in} > {os:sort}", sortbuf, sortpar))
 	sm.SetPathStatic("sort", path.Join(pipedir, "jrn_sort.txt"))
 
 	// Join the sorted matches with the reads
@@ -794,6 +807,15 @@ func handleArgs() {
 			itoks = append(itoks, y)
 		}
 		config.Windows = itoks
+
+		// TODO: this could be relaxed
+		if config.Windows[0] != 0 {
+			print("Windows[0] must be set to 0.\n\n")
+			os.Exit(1)
+		}
+	} else {
+		print("Windows must be specified.  Run `muscato --help` for more information.\n\n")
+		os.Exit(1)
 	}
 }
 

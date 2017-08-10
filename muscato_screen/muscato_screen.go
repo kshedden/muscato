@@ -220,13 +220,21 @@ func processseq(seq []byte, genenum int) {
 		hashes[j] = buzhash32.NewFromUint32Array(tables[j])
 	}
 
+	// Initialize the hashes with the first window.  Note that we
+	// require the first window to start at zero (may want to
+	// generalize this in the future).
 	hlen := config.WindowWidth
+	if len(seq) < hlen {
+		// Not long enough even for the first window.
+		return
+	}
 	for j := range hashes {
 		_, err := hashes[j].Write(seq[0:hlen])
 		if err != nil {
 			panic(err)
 		}
 	}
+
 	ix := make([]int, len(smp))
 	iw := make([]uint64, config.NumHash)
 
@@ -236,6 +244,7 @@ func processseq(seq []byte, genenum int) {
 
 		q1 := config.Windows[i]
 		if q1 != 0 {
+			// TODO: this is based on the first window starting at zero.
 			continue
 		}
 		q2 := q1 + config.WindowWidth

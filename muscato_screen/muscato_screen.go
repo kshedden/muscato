@@ -186,12 +186,17 @@ type rec struct {
 // current state of the hashes.
 func checkWin(ix []int, iw []uint64, hashes []rollinghash.Hash32) []int {
 
-	ix = ix[0:0]
+	// Get the hash states
 	for j, ha := range hashes {
 		iw[j] = uint64(ha.Sum32()) % config.BloomSize
 	}
 
+	ix = ix[0:0]
+
+	// Loop over Bloom filters
 	for k, ba := range smp {
+
+		// Determine if the Bloom filter matches
 		g := true
 		for j := range hashes {
 			f, err := ba.GetBit(iw[j])
@@ -222,12 +227,10 @@ func processseq(seq []byte, genenum int) {
 		hashes[j] = buzhash32.NewFromUint32Array(tables[j])
 	}
 
-	// Initialize the hashes with the first window.  Note that we
-	// require the first window to start at zero (may want to
-	// generalize this in the future).
+	// Initialize the hashes with the first window.
 	hlen := config.WindowWidth
 	if len(seq) < hlen {
-		// Not long enough even for the first window.
+		// Not long enough even for one window.
 		return
 	}
 	for j := range hashes {
@@ -246,7 +249,8 @@ func processseq(seq []byte, genenum int) {
 
 		q1 := config.Windows[i]
 		if q1 != 0 {
-			// TODO: this is based on the first window starting at zero.
+			// The only way the read can fit is if the
+			// window starts at the beginning of the read.
 			continue
 		}
 		q2 := q1 + config.WindowWidth
@@ -279,6 +283,7 @@ func processseq(seq []byte, genenum int) {
 			q1 := config.Windows[i]
 			q2 := q1 + config.WindowWidth
 			if j < q2-1 {
+				// The read would not fit
 				continue
 			}
 
@@ -292,7 +297,8 @@ func processseq(seq []byte, genenum int) {
 			// Right tail is jy:jz
 			jz := jy + config.MaxReadLength - q2
 			if jz > len(seq) {
-				// May not be long enough, but we don't know until we merge.
+				// May not be long enough to fit, but
+				// we don't know until we merge.
 				jz = len(seq)
 			}
 

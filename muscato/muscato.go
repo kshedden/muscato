@@ -807,12 +807,6 @@ func handleArgs() {
 			itoks = append(itoks, y)
 		}
 		config.Windows = itoks
-
-		// TODO: this could be relaxed
-		if config.Windows[0] != 0 {
-			print("Windows[0] must be set to 0.\n\n")
-			os.Exit(1)
-		}
 	} else {
 		print("Windows must be specified.  Run `muscato --help` for more information.\n\n")
 		os.Exit(1)

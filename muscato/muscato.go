@@ -919,6 +919,7 @@ func makeTemp() {
 	if err != nil {
 		panic(err)
 	}
+	sortTmpDir = "-T " + sortTmpDir
 }
 
 func writeNonMatch() {

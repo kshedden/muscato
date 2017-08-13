@@ -65,7 +65,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"os"
@@ -76,6 +75,7 @@ import (
 	"time"
 
 	"github.com/golang/snappy"
+	"github.com/google/uuid"
 	"github.com/kshedden/muscato/utils"
 	"github.com/scipipe/scipipe"
 	"github.com/willf/bloom"
@@ -83,13 +83,10 @@ import (
 )
 
 var (
-	startpoint int
-
 	configFilePath string
 
 	config   *utils.Config
 	basename string
-	tmpdir   string
 	pipedir  string
 	logger   *log.Logger
 
@@ -136,7 +133,7 @@ func pipefromsz(fname string) string {
 
 func prepReads() {
 
-	logger.Printf("starting prepReads")
+	logger.Printf("Starting prepReads")
 
 	logger.Printf("Running command: 'muscato_prep_reads %s'", configFilePath)
 	cmd0 := exec.Command("muscato_prep_reads", configFilePath)
@@ -170,7 +167,7 @@ func prepReads() {
 	scanner.Buffer(buf, len(buf))
 
 	// File for sequences
-	outname := path.Join(tmpdir, "reads_sorted.txt.sz")
+	outname := path.Join(config.TempDir, "reads_sorted.txt.sz")
 	logger.Printf("Writing sequences to %s", outname)
 	fid, err := os.Create(outname)
 	if err != nil {
@@ -271,41 +268,34 @@ func sortWindows() {
 	logger.Printf("starting sortWindows")
 
 	for k := 0; k < len(config.Windows); k++ {
-		f := fmt.Sprintf("win_%d.txt.sz", k)
-		fname := path.Join(tmpdir, f)
-		pname1 := pipefromsz(fname)
 
-		cmd1 := exec.Command("sort", sortbuf, sortpar, sortTmpFlag, "-k1", pname1)
-		cmd1.Env = os.Environ()
-		cmd1.Stderr = os.Stderr
+		logger.Printf("sortWindows %d...", k)
 
-		fname = strings.Replace(fname, ".txt.sz", "_sorted.txt.sz", 1)
-		cmd2 := exec.Command("sztool", "-c", "-", fname)
-		cmd2.Env = os.Environ()
-		cmd2.Stderr = os.Stderr
-		var err error
-		cmd2.Stdin, err = cmd1.StdoutPipe()
-		if err != nil {
-			panic(err)
-		}
+		// Decompress matches
+		fn := path.Join(config.TempDir, fmt.Sprintf("win_%d.txt.sz", k))
+		dc := scipipe.NewProc("dc", fmt.Sprintf("sztool -d %s > {os:dx}", fn))
+		dc.SetPathStatic("dx", path.Join(pipedir, fmt.Sprintf("sw_dc_%d", k)))
 
-		cmds := []*exec.Cmd{cmd2, cmd1}
+		// Sort the matches
+		sc := fmt.Sprintf("sort %s %s -k1 %s {i:in} > {o:sort}", sortbuf, sortpar, sortTmpFlag)
+		sm := scipipe.NewProc("sm", sc)
+		logger.Printf(sc)
+		sm.SetPathStatic("sort", path.Join(pipedir, fmt.Sprintf("sw_sort_%d", k)))
 
-		for _, cmd := range cmds {
-			err := cmd.Start()
-			if err != nil {
-				panic(err)
-			}
-		}
+		// Compress results
+		fn = strings.Replace(fn, ".txt.sz", "_sorted.txt.sz", 1)
+		rc := scipipe.NewProc("rc", fmt.Sprintf("sztool -c {i:ins} %s", fn))
 
-		// Order is important here, need to wait on cmd2
-		// before waiting on cmd1.
-		for _, cmd := range cmds {
-			err := cmd.Wait()
-			if err != nil {
-				panic(err)
-			}
-		}
+		// Connect the network
+		sm.In("in").Connect(dc.Out("dx"))
+		rc.In("ins").Connect(sm.Out("sort"))
+
+		wf := scipipe.NewWorkflow("sw")
+		wf.AddProcs(dc, sm, rc)
+		wf.SetDriver(rc)
+		wf.Run()
+
+		logger.Printf("done\n")
 	}
 
 	logger.Printf("sortWindows done")
@@ -321,50 +311,42 @@ func screen() {
 	if err != nil {
 		panic(err)
 	}
-	logger.Printf("screening done")
+	logger.Printf("Screening done")
 }
 
 func sortBloom() {
 
-	logger.Printf("starting sortBloom")
+	logger.Printf("Starting sortBloom")
 
 	for k := range config.Windows {
-		f := fmt.Sprintf("bmatch_%d.txt.sz", k)
-		fname := path.Join(tmpdir, f)
-		pname1 := pipefromsz(fname)
 
-		cmd1 := exec.Command("sort", sortbuf, sortpar, sortTmpFlag, "-k1", pname1)
-		cmd1.Env = os.Environ()
-		cmd1.Stderr = os.Stderr
+		logger.Printf("sortBloom %d...", k)
 
-		f = fmt.Sprintf("smatch_%d.txt.sz", k)
-		fname = path.Join(tmpdir, f)
-		cmd2 := exec.Command("sztool", "-c", "-", fname)
-		cmd2.Env = os.Environ()
-		cmd2.Stderr = os.Stderr
-		var err error
-		cmd2.Stdin, err = cmd1.StdoutPipe()
-		if err != nil {
-			panic(err)
-		}
+		// Decompress matches
+		fn := path.Join(config.TempDir, fmt.Sprintf("bmatch_%d.txt.sz", k))
+		dc := scipipe.NewProc("dc", fmt.Sprintf("sztool -d %s > {os:dx}", fn))
+		dc.SetPathStatic("dx", path.Join(pipedir, fmt.Sprintf("sb_dc_%d", k)))
 
-		// Order matters here
-		cmds := []*exec.Cmd{cmd2, cmd1}
+		// Sort the matches
+		c := fmt.Sprintf("sort %s %s -k1 %s {i:in} > {os:sort}", sortbuf, sortpar, sortTmpFlag)
+		logger.Printf(c)
+		sm := scipipe.NewProc("sm", c)
+		sm.SetPathStatic("sort", path.Join(pipedir, fmt.Sprintf("sb_sort_%d", k)))
 
-		for _, cmd := range cmds {
-			err := cmd.Start()
-			if err != nil {
-				panic(err)
-			}
-		}
+		// Compress results
+		fn = path.Join(config.TempDir, fmt.Sprintf("smatch_%d.txt.sz", k))
+		rc := scipipe.NewProc("rc", fmt.Sprintf("sztool -c {i:ins} %s", fn))
 
-		// Order is important, must wait on cmd2 first
-		for _, cmd := range cmds {
-			err := cmd.Wait()
-			if err != nil {
-				panic(err)
-			}
-		}
+		// Connect the network
+		sm.In("in").Connect(dc.Out("dx"))
+		rc.In("ins").Connect(sm.Out("sort"))
+
+		wf := scipipe.NewWorkflow("sb")
+		wf.AddProcs(dc, sm, rc)
+		wf.SetDriver(rc)
+		wf.Run()
+
+		logger.Printf("done")
 	}
 
 	logger.Printf("sortBloom done")
@@ -459,7 +441,7 @@ func combineWindows() {
 	cmds := []*exec.Cmd{c0}
 
 	// The sorted results go to disk
-	outname := path.Join(tmpdir, "matches.txt.sz")
+	outname := path.Join(config.TempDir, "matches.txt.sz")
 	out, err := os.Create(outname)
 	if err != nil {
 		panic(err)
@@ -470,7 +452,7 @@ func combineWindows() {
 	var fd []io.Reader
 	for j := 0; j < len(config.Windows); j++ {
 		f := fmt.Sprintf("rmatch_%d.txt.sz", j)
-		fname := path.Join(tmpdir, f)
+		fname := path.Join(config.TempDir, f)
 		c := exec.Command("sztool", "-d", fname)
 		c.Env = os.Environ()
 		c.Stderr = os.Stderr
@@ -558,8 +540,8 @@ func combineWindows() {
 func sortByGeneId() {
 
 	logger.Printf("starting sortByGeneid")
-	inname := path.Join(tmpdir, "matches.txt.sz")
-	outname := path.Join(tmpdir, "matches_sg.txt.sz")
+	inname := path.Join(config.TempDir, "matches.txt.sz")
+	outname := path.Join(config.TempDir, "matches_sg.txt.sz")
 
 	// Sort by gene number
 	cmd1 := exec.Command("sztool", "-d", inname)
@@ -607,7 +589,7 @@ func joinGeneNames() {
 	logger.Printf("starting joinGeneNames")
 
 	// Decompress matches
-	ma := scipipe.NewProc("ma", fmt.Sprintf("sztool -d %s > {os:ma}", path.Join(tmpdir, "matches_sg.txt.sz")))
+	ma := scipipe.NewProc("ma", fmt.Sprintf("sztool -d %s > {os:ma}", path.Join(config.TempDir, "matches_sg.txt.sz")))
 	ma.SetPathStatic("ma", path.Join(pipedir, "jgn_ma.txt"))
 
 	// Decompress gene ids
@@ -623,7 +605,7 @@ func joinGeneNames() {
 	ct.SetPathStatic("co", path.Join(pipedir, "jgn_cut.txt"))
 
 	// Compress the result
-	sz := scipipe.NewProc("sz", fmt.Sprintf("sztool -c {i:zi} %s", path.Join(tmpdir, "matches_sn.txt.sz")))
+	sz := scipipe.NewProc("sz", fmt.Sprintf("sztool -c {i:zi} %s", path.Join(config.TempDir, "matches_sn.txt.sz")))
 
 	jo.In("mx").Connect(ma.Out("ma"))
 	jo.In("gx").Connect(gn.Out("gn"))
@@ -658,12 +640,12 @@ func joinReadNames() {
 
 	// Decompress matches
 	ma := scipipe.NewProc("ma", fmt.Sprintf("sztool -d %s > {os:ma}",
-		path.Join(tmpdir, "matches_sn.txt.sz")))
+		path.Join(config.TempDir, "matches_sn.txt.sz")))
 	ma.SetPathStatic("ma", path.Join(pipedir, "jrn_ma.txt"))
 
 	// Decompress sorted reads
 	rd := scipipe.NewProc("rd", fmt.Sprintf("sztool -d %s > {os:rd}",
-		path.Join(tmpdir, "reads_sorted.txt.sz")))
+		path.Join(config.TempDir, "reads_sorted.txt.sz")))
 	rd.SetPathStatic("rd", path.Join(pipedir, "jrn_rd.txt"))
 
 	// Sort the matches
@@ -735,7 +717,6 @@ func handleArgs() {
 	MaxMatches := flag.Int("MaxMatches", 0, "Return no more than this number of matches per window")
 	MaxMergeProcs := flag.Int("MaxMergeProcs", 0, "Run this number of merge processes concurrently")
 	MMTol := flag.Int("MMTol", 0, "Number of mismatches allowed above best fit")
-	StartPoint := flag.Int("StartPoint", 0, "Restart at a given point in the procedure")
 	MatchMode := flag.String("MatchMode", "", "'first' (retain first matches meeting criteria) or 'best' (returns best matches meeting criteria)")
 	NoCleanTmp := flag.Bool("NoCleanTmp", false, "Leave temporary files in TempDir")
 
@@ -803,8 +784,6 @@ func handleArgs() {
 		print("ResultsFileName must be specified.  Run 'muscato --help' for more information.\n\n")
 		os.Exit(1)
 	}
-
-	startpoint = *StartPoint
 
 	if *WindowsRaw != "" {
 		toks := strings.Split(*WindowsRaw, ",")
@@ -900,42 +879,45 @@ func setupEnvs() {
 
 // Create the directory for all temporary files, if needed
 func makeTemp() {
-	if config.TempDir == "" {
-		err := os.MkdirAll("muscato_tmp", 0755)
-		if err != nil {
-			panic(err)
-		}
-		tmpdir, err = ioutil.TempDir("muscato_tmp", "")
-		if err != nil {
-			panic(err)
-		}
-		config.TempDir = tmpdir
-	} else {
-		tmpdir = config.TempDir
-		err := os.MkdirAll(tmpdir, 0755)
-		if err != nil {
-			panic(err)
-		}
-	}
 
-	// The directory where all pipes are written.
-	pipedir = path.Join("/tmp/muscato/pipes", path.Base(tmpdir))
-	err := os.MkdirAll(pipedir, 0755)
+	// temp files, log files, etc. are stored in directories defined by this unique id.
+	xuid, err := uuid.NewUUID()
+	if err != nil {
+		panic(err)
+	}
+	uid := xuid.String()
+
+	if config.TempDir == "" {
+		config.TempDir = path.Join("muscato_tmp", uid)
+	} else {
+		// Overwrite the provided TempDir with a subdirectory.
+		config.TempDir = path.Join(config.TempDir, uid)
+	}
+	err = os.MkdirAll(config.TempDir, 0755)
 	if err != nil {
 		panic(err)
 	}
 
+	// The directory where all pipes are written, needs to be in a
+	// filesystem that supports pipes..
+	pipedir = path.Join("/tmp/muscato/pipes", uid)
+	err = os.MkdirAll(pipedir, 0755)
+	if err != nil {
+		panic(err)
+	}
+
+	// Setup the directory for logging.
 	if config.LogDir == "" {
-		logdir := path.Join("muscato_logs", path.Base(tmpdir))
-		err := os.MkdirAll(logdir, 0755)
-		if err != nil {
-			panic(err)
-		}
-		config.LogDir = logdir
+		config.LogDir = "muscato_logs"
+	}
+	config.LogDir = path.Join(config.LogDir, uid)
+	err = os.MkdirAll(config.LogDir, 0755)
+	if err != nil {
+		panic(err)
 	}
 
 	// Configure the temporary directory for sort.
-	sortTmpFlag = path.Join(tmpdir, "sort")
+	sortTmpFlag = path.Join(config.TempDir, "sort")
 	err = os.MkdirAll(sortTmpFlag, 0755)
 	if err != nil {
 		panic(err)
@@ -983,7 +965,7 @@ func writeNonMatch() {
 	defer wtr.Flush()
 
 	// Check each read to see if it was matched.
-	rfname := path.Join(tmpdir, "reads_sorted.txt.sz")
+	rfname := path.Join(config.TempDir, "reads_sorted.txt.sz")
 	inf, err = os.Open(rfname)
 	if err != nil {
 		panic(err)
@@ -1025,49 +1007,17 @@ func writeNonMatch() {
 }
 
 func run() {
-	if startpoint <= 0 {
-		prepReads()
-	}
-
-	if startpoint <= 1 {
-		windowReads()
-	}
-
-	if startpoint <= 2 {
-		sortWindows()
-	}
-
-	if startpoint <= 3 {
-		screen()
-	}
-
-	if startpoint <= 4 {
-		sortBloom()
-	}
-
-	if startpoint <= 5 {
-		confirm()
-	}
-
-	if startpoint <= 6 {
-		combineWindows()
-	}
-
-	if startpoint <= 7 {
-		sortByGeneId()
-	}
-
-	if startpoint <= 8 {
-		joinGeneNames()
-	}
-
-	if startpoint <= 9 {
-		joinReadNames()
-	}
-
-	if startpoint <= 10 {
-		writeNonMatch()
-	}
+	prepReads()
+	windowReads()
+	sortWindows()
+	screen()
+	sortBloom()
+	confirm()
+	combineWindows()
+	sortByGeneId()
+	joinGeneNames()
+	joinReadNames()
+	writeNonMatch()
 }
 
 func clean() {
@@ -1082,7 +1032,7 @@ func clean() {
 
 	if !config.NoCleanTmp {
 		logger.Printf("Removing temporary files...")
-		err := os.RemoveAll(tmpdir)
+		err := os.RemoveAll(config.TempDir)
 		if err != nil {
 			logger.Print("Can't remove temporary files:")
 			logger.Print(err)
@@ -1100,7 +1050,7 @@ func main() {
 	saveConfig(config)
 	setupLog()
 
-	logger.Printf("Storing temporary files in %s", tmpdir)
+	logger.Printf("Storing temporary files in %s", config.TempDir)
 	logger.Printf("Storing log files in %s", config.LogDir)
 
 	run()

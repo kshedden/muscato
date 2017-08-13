@@ -21,7 +21,7 @@ import (
 	"path"
 
 	"github.com/golang/snappy"
-	"github.com/kshedden/seqmatch/utils"
+	"github.com/kshedden/muscato/utils"
 )
 
 var (

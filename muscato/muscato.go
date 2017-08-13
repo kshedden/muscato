@@ -76,22 +76,26 @@ import (
 	"time"
 
 	"github.com/golang/snappy"
-	"github.com/kshedden/seqmatch/utils"
+	"github.com/kshedden/muscato/utils"
 	"github.com/scipipe/scipipe"
 	"github.com/willf/bloom"
 	"golang.org/x/sys/unix"
 )
 
 var (
-	jsonfile    string
-	startpoint  int
-	tmpjsonfile string
-	config      *utils.Config
-	basename    string
-	tmpdir      string
-	pipedir     string
-	logger      *log.Logger
-	sortTmpDir  string
+	jsonfile   string
+	startpoint int
+
+	tmpFilePath string
+
+	config   *utils.Config
+	basename string
+	tmpdir   string
+	pipedir  string
+	logger   *log.Logger
+
+	// Flag for setting the tmp file location for sorting.
+	sortTmpFlag string
 )
 
 const (
@@ -135,12 +139,12 @@ func sortSource() {
 
 	logger.Printf("starting sortSource")
 
-	logger.Printf("Running prep_reads %s %s", tmpjsonfile, tmpdir)
-	cmd0 := exec.Command("muscato_prep_reads", tmpjsonfile, tmpdir)
+	logger.Printf("Running prep_reads %s %s", tmpFilePath, tmpdir)
+	cmd0 := exec.Command("muscato_prep_reads", tmpFilePath, tmpdir)
 	cmd0.Env = os.Environ()
 	cmd0.Stderr = os.Stderr
 
-	cmd1 := exec.Command("sort", sortbuf, sortpar, sortTmpDir)
+	cmd1 := exec.Command("sort", sortbuf, sortpar, sortTmpFlag)
 	cmd1.Env = os.Environ()
 	cmd1.Stderr = os.Stderr
 	var err error
@@ -252,7 +256,7 @@ func sortSource() {
 func windowReads() {
 	logger.Printf("starting windowReads")
 
-	cmd := exec.Command("muscato_window_reads", tmpjsonfile, tmpdir)
+	cmd := exec.Command("muscato_window_reads", tmpFilePath, tmpdir)
 	cmd.Env = os.Environ()
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
@@ -272,7 +276,7 @@ func sortWindows() {
 		fname := path.Join(tmpdir, f)
 		pname1 := pipefromsz(fname)
 
-		cmd1 := exec.Command("sort", sortbuf, sortpar, sortTmpDir, "-k1", pname1)
+		cmd1 := exec.Command("sort", sortbuf, sortpar, sortTmpFlag, "-k1", pname1)
 		cmd1.Env = os.Environ()
 		cmd1.Stderr = os.Stderr
 
@@ -311,7 +315,7 @@ func sortWindows() {
 func screen() {
 	logger.Printf("starting screening")
 
-	cmd := exec.Command("muscato_screen", tmpjsonfile, tmpdir)
+	cmd := exec.Command("muscato_screen", tmpFilePath, tmpdir)
 	cmd.Env = os.Environ()
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
@@ -330,7 +334,7 @@ func sortBloom() {
 		fname := path.Join(tmpdir, f)
 		pname1 := pipefromsz(fname)
 
-		cmd1 := exec.Command("sort", sortbuf, sortpar, sortTmpDir, "-k1", pname1)
+		cmd1 := exec.Command("sort", sortbuf, sortpar, sortTmpFlag, "-k1", pname1)
 		cmd1.Env = os.Environ()
 		cmd1.Stderr = os.Stderr
 
@@ -383,7 +387,7 @@ func confirm() {
 		var cmds []*exec.Cmd
 		for k := fp; k < fp+nproc; k++ {
 			logger.Printf("Starting a round of confirmation processes")
-			cmd := exec.Command("muscato_confirm", tmpjsonfile, fmt.Sprintf("%d", k), tmpdir)
+			cmd := exec.Command("muscato_confirm", tmpFilePath, fmt.Sprintf("%d", k), tmpdir)
 			cmd.Env = os.Environ()
 			cmd.Stderr = os.Stderr
 			err := cmd.Start()
@@ -449,7 +453,7 @@ func combineWindows() {
 	mmtol := config.MMTol
 
 	// Pipe everything into one sort/unique
-	c0 := exec.Command("sort", sortbuf, sortpar, sortTmpDir, "-u", "-")
+	c0 := exec.Command("sort", sortbuf, sortpar, sortTmpFlag, "-u", "-")
 	c0.Env = os.Environ()
 	c0.Stderr = os.Stderr
 	cmds := []*exec.Cmd{c0}
@@ -562,7 +566,7 @@ func sortByGeneId() {
 	cmd1.Env = os.Environ()
 	cmd1.Stderr = os.Stderr
 	// k5 is position of gene id
-	cmd2 := exec.Command("sort", sortbuf, sortpar, sortTmpDir, "-k5", "-")
+	cmd2 := exec.Command("sort", sortbuf, sortpar, sortTmpFlag, "-k5", "-")
 	cmd2.Env = os.Environ()
 	cmd2.Stderr = os.Stderr
 	var err error
@@ -663,7 +667,7 @@ func joinReadNames() {
 	rd.SetPathStatic("rd", path.Join(pipedir, "jrn_rd.txt"))
 
 	// Sort the matches
-	sm := scipipe.NewProc("sm", fmt.Sprintf("sort %s %s -k1 %s {i:in} > {os:sort}", sortbuf, sortpar, sortTmpDir))
+	sm := scipipe.NewProc("sm", fmt.Sprintf("sort %s %s -k1 %s {i:in} > {os:sort}", sortbuf, sortpar, sortTmpFlag))
 	sm.SetPathStatic("sort", path.Join(pipedir, "jrn_sort.txt"))
 
 	// Join the sorted matches with the reads
@@ -695,9 +699,11 @@ func setupLog() {
 	logger = log.New(fid, "", log.Ltime)
 }
 
-func copyconfig(config *utils.Config, tmpdir string) {
+// copyConfig saves the configuration file in json format into the log
+// directory.
+func copyConfig(config *utils.Config) {
 
-	fid, err := os.Create(path.Join(tmpdir, "config.json"))
+	fid, err := os.Create(path.Join(config.LogDir, "config.json"))
 	if err != nil {
 		panic(err)
 	}
@@ -707,7 +713,7 @@ func copyconfig(config *utils.Config, tmpdir string) {
 	if err != nil {
 		panic(err)
 	}
-	tmpjsonfile = path.Join(tmpdir, "config.json")
+	tmpFilePath = path.Join(tmpdir, "config.json")
 }
 
 func handleArgs() {
@@ -908,18 +914,31 @@ func makeTemp() {
 		}
 	}
 
+	// The directory where all pipes are written (TODO: maybe
+	// always put this in /tmp, since afs filesytems don't support
+	// pipes).
 	pipedir = path.Join(tmpdir, "pipes")
 	err := os.MkdirAll(pipedir, 0755)
 	if err != nil {
 		panic(err)
 	}
 
-	sortTmpDir = path.Join(tmpdir, "sort")
-	err = os.MkdirAll(sortTmpDir, 0755)
+	if config.LogDir == "" {
+		logdir := path.Join("muscato_logs", path.Base(tmpdir))
+		err := os.MkdirAll(config.LogDir, 0755)
+		if err != nil {
+			panic(err)
+		}
+		config.LogDir = logdir
+	}
+
+	// Configure the temporary directory for sort.
+	sortTmpFlag = path.Join(tmpdir, "sort")
+	err = os.MkdirAll(sortTmpFlag, 0755)
 	if err != nil {
 		panic(err)
 	}
-	sortTmpDir = "--temporary-directory=" + sortTmpDir
+	sortTmpFlag = "--temporary-directory=" + sortTmpFlag
 }
 
 func writeNonMatch() {
@@ -1055,10 +1074,11 @@ func main() {
 	checkArgs()
 	setupEnvs()
 	makeTemp()
-	copyconfig(config, tmpdir)
+	copyConfig(config)
 	setupLog()
 
 	logger.Printf("Storing temporary files in %s", tmpdir)
+	logger.Printf("Storing log files in %s", config.LogDir)
 
 	run()
 

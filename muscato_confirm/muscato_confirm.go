@@ -26,7 +26,7 @@ import (
 	"strings"
 
 	"github.com/golang/snappy"
-	"github.com/kshedden/seqmatch/utils"
+	"github.com/kshedden/muscato/utils"
 	"github.com/pkg/profile"
 )
 

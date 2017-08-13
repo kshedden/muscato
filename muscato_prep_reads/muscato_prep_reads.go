@@ -12,7 +12,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/kshedden/seqmatch/utils"
+	"github.com/kshedden/muscato/utils"
 )
 
 const (

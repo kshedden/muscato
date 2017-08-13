@@ -44,8 +44,14 @@ type Config struct {
 
 	// Use this location to place temporary files.  If blank or
 	// missing, a temporary directory is generated of the form
-	// tmp/########.
+	// tmp/######## in the local directory.
 	TempDir string
+
+	// The directory where log files are written.  By default the
+	// logs are placed into muscato_logs/###### in the local
+	// directory, where the number matches the default prefix of
+	// the temporary directory.
+	LogDir string
 
 	// Skip all reads shorter than this length.
 	MinReadLength int

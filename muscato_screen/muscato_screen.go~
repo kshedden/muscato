@@ -1,11 +1,11 @@
 // Copyright 2017, Kerby Shedden and the Muscato contributors.
 
-// muscato_screen is an initial screening step used by Muscato to
-// identify candidate matches of a set of reads into a set of target
-// gene sequences.  The results of the screen may contain false
-// positives, but will not contain any false negatives.
+// screen is an initial screening step used by Muscato to identify
+// candidate matches of a set of reads into a set of target gene
+// sequences.  The results of the screen may contain false positives,
+// but will not have any false negatives.
 //
-// The approach is to use a Bloom filter to sketch the reads based on
+// The approach is to use a Bloom-filter to sketch the reads based on
 // the subsequences that appear at defined offsets within the reads.
 // For example, if position 10 is an offset and we are looking at
 // subequences of width 15, then the read subsequences from position
@@ -46,7 +46,7 @@ import (
 	"github.com/chmduquesne/rollinghash/buzhash32"
 	"github.com/golang-collections/go-datastructures/bitarray"
 	"github.com/golang/snappy"
-	"github.com/kshedden/muscato/utils"
+	"github.com/kshedden/seqmatch/utils"
 )
 
 const (
@@ -183,21 +183,15 @@ type rec struct {
 }
 
 // checkWin returns the indices of the Bloom filters that match the
-// current state of the hashes.  iw is workspace and hashses contains
-// the hashes that define the Bloom filters.
+// current state of the hashes.
 func checkWin(ix []int, iw []uint64, hashes []rollinghash.Hash32) []int {
 
-	// Get the hash states
+	ix = ix[0:0]
 	for j, ha := range hashes {
 		iw[j] = uint64(ha.Sum32()) % config.BloomSize
 	}
 
-	ix = ix[0:0]
-
-	// Loop over Bloom filters
 	for k, ba := range smp {
-
-		// Determine if the Bloom filter matches
 		g := true
 		for j := range hashes {
 			f, err := ba.GetBit(iw[j])
@@ -221,30 +215,19 @@ func checkWin(ix []int, iw []uint64, hashes []rollinghash.Hash32) []int {
 // process one target sequence, runs concurrently with main loop.
 func processseq(seq []byte, genenum int) {
 
-	defer func() { <-limit }()
-
 	hashes := make([]rollinghash.Hash32, config.NumHash)
 	for j := range hashes {
 		hashes[j] = buzhash32.NewFromUint32Array(tables[j])
 	}
 
-	// Initialize the hashes with the first window.
 	hlen := config.WindowWidth
-	if len(seq) < hlen {
-		// Not long enough to fit even one window.
-		return
-	}
 	for j := range hashes {
 		_, err := hashes[j].Write(seq[0:hlen])
 		if err != nil {
 			panic(err)
 		}
 	}
-
-	// Will contain the indices of the matching windows
 	ix := make([]int, len(smp))
-
-	// Workspace
 	iw := make([]uint64, config.NumHash)
 
 	// Check if the initial window is a match
@@ -253,8 +236,6 @@ func processseq(seq []byte, genenum int) {
 
 		q1 := config.Windows[i]
 		if q1 != 0 {
-			// The only way the read can fit is if the
-			// window starts at the beginning of the read.
 			continue
 		}
 		q2 := q1 + config.WindowWidth
@@ -287,7 +268,6 @@ func processseq(seq []byte, genenum int) {
 			q1 := config.Windows[i]
 			q2 := q1 + config.WindowWidth
 			if j < q2-1 {
-				// The read would not fit
 				continue
 			}
 
@@ -301,8 +281,7 @@ func processseq(seq []byte, genenum int) {
 			// Right tail is jy:jz
 			jz := jy + config.MaxReadLength - q2
 			if jz > len(seq) {
-				// May not be long enough to fit, but
-				// we don't know until we merge.
+				// May not be long enough, but we don't know until we merge.
 				jz = len(seq)
 			}
 
@@ -318,6 +297,7 @@ func processseq(seq []byte, genenum int) {
 			}
 		}
 	}
+	<-limit
 }
 
 // Retrieve the results and write to disk
@@ -436,7 +416,7 @@ func search() {
 }
 
 func setupLogger() {
-	logname := path.Join(tmpdir, "muscato_screen.log")
+	logname := path.Join(tmpdir, "bloom.log")
 	logfid, err := os.Create(logname)
 	if err != nil {
 		panic(err)

@@ -135,117 +135,43 @@ func prepReads() {
 
 	logger.Printf("Starting prepReads")
 
-	logger.Printf("Running command: 'muscato_prep_reads %s'", configFilePath)
-	cmd0 := exec.Command("muscato_prep_reads", configFilePath)
-	cmd0.Env = os.Environ()
-	cmd0.Stderr = os.Stderr
+	// Run muscato_prep_reads
+	dc := scipipe.NewProc("mpr", fmt.Sprintf("muscato_prep_reads %s > {os:mpr_out}", configFilePath))
+	dc.SetPathStatic("mpr_out", path.Join(pipedir, "pr_mpr"))
 
-	cmd1 := exec.Command("sort", sortbuf, sortpar, sortTmpFlag)
-	cmd1.Env = os.Environ()
-	cmd1.Stderr = os.Stderr
-	var err error
-	cmd1.Stdin, err = cmd0.StdoutPipe()
-	if err != nil {
-		panic(err)
-	}
-	pip, err := cmd1.StdoutPipe()
-	if err != nil {
-		panic(err)
-	}
+	// Sort the output of muscato_prep_reads
+	c := fmt.Sprintf("sort %s %s %s {i:insort} > {os:outsort}", sortbuf, sortpar, sortTmpFlag)
+	logger.Printf(c)
+	sr := scipipe.NewProc("sr", c)
+	sr.SetPathStatic("outsort", path.Join(pipedir, "pr_outsort"))
 
-	cmds := []*exec.Cmd{cmd0, cmd1}
+	// Uniqify and count duplicates
+	c = fmt.Sprintf("uniq -c {i:inuniq} > {os:outuniq}")
+	logger.Printf(c)
+	ur := scipipe.NewProc("ur", c)
+	ur.SetPathStatic("outuniq", path.Join(pipedir, "pr_outuniq"))
 
-	for _, cmd := range cmds {
-		err = cmd.Start()
-		if err != nil {
-			panic(err)
-		}
-	}
+	// Rearrange columns
+	c = `awk '{print $2, $1, $3}' OFS="\t" {i:inawk} > {os:outawk}`
+	logger.Printf(c)
+	ak := scipipe.NewProc("ak", c)
+	ak.SetPathStatic("outawk", path.Join(pipedir, "pr_outawk"))
 
-	scanner := bufio.NewScanner(pip)
-	buf := make([]byte, 1024*1024)
-	scanner.Buffer(buf, len(buf))
-
-	// File for sequences
+	// Compress results
 	outname := path.Join(config.TempDir, "reads_sorted.txt.sz")
-	logger.Printf("Writing sequences to %s", outname)
-	fid, err := os.Create(outname)
-	if err != nil {
-		panic(err)
-	}
-	defer fid.Close()
-	wtr := snappy.NewBufferedWriter(fid)
-	defer wtr.Close()
+	wr := scipipe.NewProc("wr", fmt.Sprintf("sztool -c {i:inw} %s", outname))
 
-	// Get the first line
-	if !scanner.Scan() {
-		logger.Printf("no input")
-		panic("no input (is the read file empty?)")
-	}
-	if err := scanner.Err(); err != nil {
-		panic(err)
-	}
-	fields := strings.Fields(scanner.Text())
-	seq := fields[0]
-	name := []string{fields[1]}
-	n := 1
-	nseq := 0
+	// Connect the network
+	sr.In("insort").Connect(dc.Out("mpr_out"))
+	ur.In("inuniq").Connect(sr.Out("outsort"))
+	ak.In("inawk").Connect(ur.Out("outuniq"))
+	wr.In("inw").Connect(ak.Out("outawk"))
 
-	dowrite := func(seq string, name []string, n int) {
-		xn := strings.Join(name, ";")
-		if len(xn) > 1000 {
-			xn = xn[0:995]
-			xn += "..."
-		}
-		nseq++
-		_, err = wtr.Write([]byte(seq))
-		if err != nil {
-			panic(err)
-		}
-		_, err = wtr.Write([]byte("\t"))
-		if err != nil {
-			panic(err)
-		}
-		s := fmt.Sprintf("%d\t%s\n", n, xn)
-		_, err = wtr.Write([]byte(s))
-		if err != nil {
-			panic(err)
-		}
-	}
+	wf := scipipe.NewWorkflow("pr")
+	wf.AddProcs(dc, sr, ur, ak, wr)
+	wf.SetDriver(wr)
+	wf.Run()
 
-	for scanner.Scan() {
-		line := scanner.Text()
-		fields1 := strings.Fields(line)
-		seq1 := fields1[0]
-		name1 := fields1[1]
-
-		if strings.Compare(seq, seq1) == 0 {
-			n++
-			name = append(name, name1)
-			continue
-		}
-
-		dowrite(seq, name, n)
-		seq = seq1
-		name = name[0:1]
-		name[0] = name1
-		n = 1
-	}
-
-	if err := scanner.Err(); err != nil {
-		panic(err)
-	}
-
-	// Read to EOF before calling wait.
-	dowrite(seq, name, n)
-
-	for _, cmd := range cmds {
-		if err := cmd.Wait(); err != nil {
-			log.Fatal(err)
-		}
-	}
-
-	logger.Printf(fmt.Sprintf("Wrote %d read sequences", nseq))
 	logger.Printf("prepReads done")
 }
 
@@ -1043,6 +969,8 @@ func clean() {
 
 func main() {
 
+	defer clean()
+
 	handleArgs()
 	checkArgs()
 	setupEnvs()
@@ -1054,8 +982,6 @@ func main() {
 	logger.Printf("Storing log files in %s", config.LogDir)
 
 	run()
-
-	clean()
 
 	logger.Printf("All done, exiting")
 }

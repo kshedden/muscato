@@ -241,7 +241,10 @@ func processseq(seq []byte, genenum int) {
 		}
 	}
 
+	// Will contain the indices of the matchine windows
 	ix := make([]int, len(smp))
+
+	// Workspace
 	iw := make([]uint64, config.NumHash)
 
 	// Check if the initial window is a match

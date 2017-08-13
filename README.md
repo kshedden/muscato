@@ -37,6 +37,10 @@ export GOBIN=${GOPATH}/bin
 export PATH=${GOBIN}:${PATH}
 ```
 
+The easiest way to update Muscato is to run `rm -r` on your muscato
+source directory (in go/src/github.com/kshedden), then reinstall as
+above.
+
 __Basic usage__
 
 Before running Muscato, you should prepare a version of your target

@@ -241,7 +241,7 @@ func processseq(seq []byte, genenum int) {
 		}
 	}
 
-	// Will contain the indices of the matchine windows
+	// Will contain the indices of the matching windows
 	ix := make([]int, len(smp))
 
 	// Workspace

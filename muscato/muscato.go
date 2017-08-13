@@ -91,6 +91,7 @@ var (
 	tmpdir      string
 	pipedir     string
 	logger      *log.Logger
+	sortTmpDir  string
 )
 
 const (
@@ -139,7 +140,7 @@ func sortSource() {
 	cmd0.Env = os.Environ()
 	cmd0.Stderr = os.Stderr
 
-	cmd1 := exec.Command("sort", sortbuf, sortpar)
+	cmd1 := exec.Command("sort", sortbuf, sortpar, sortTmpDir)
 	cmd1.Env = os.Environ()
 	cmd1.Stderr = os.Stderr
 	var err error
@@ -271,7 +272,7 @@ func sortWindows() {
 		fname := path.Join(tmpdir, f)
 		pname1 := pipefromsz(fname)
 
-		cmd1 := exec.Command("sort", sortbuf, sortpar, "-k1", pname1)
+		cmd1 := exec.Command("sort", sortbuf, sortpar, sortTmpDir, "-k1", pname1)
 		cmd1.Env = os.Environ()
 		cmd1.Stderr = os.Stderr
 
@@ -329,7 +330,7 @@ func sortBloom() {
 		fname := path.Join(tmpdir, f)
 		pname1 := pipefromsz(fname)
 
-		cmd1 := exec.Command("sort", sortbuf, sortpar, "-k1", pname1)
+		cmd1 := exec.Command("sort", sortbuf, sortpar, sortTmpDir, "-k1", pname1)
 		cmd1.Env = os.Environ()
 		cmd1.Stderr = os.Stderr
 
@@ -448,7 +449,7 @@ func combineWindows() {
 	mmtol := config.MMTol
 
 	// Pipe everything into one sort/unique
-	c0 := exec.Command("sort", sortbuf, sortpar, "-u", "-")
+	c0 := exec.Command("sort", sortbuf, sortpar, sortTmpDir, "-u", "-")
 	c0.Env = os.Environ()
 	c0.Stderr = os.Stderr
 	cmds := []*exec.Cmd{c0}
@@ -561,7 +562,7 @@ func sortByGeneId() {
 	cmd1.Env = os.Environ()
 	cmd1.Stderr = os.Stderr
 	// k5 is position of gene id
-	cmd2 := exec.Command("sort", sortbuf, sortpar, "-k5", "-")
+	cmd2 := exec.Command("sort", sortbuf, sortpar, sortTmpDir, "-k5", "-")
 	cmd2.Env = os.Environ()
 	cmd2.Stderr = os.Stderr
 	var err error
@@ -662,7 +663,7 @@ func joinReadNames() {
 	rd.SetPathStatic("rd", path.Join(pipedir, "jrn_rd.txt"))
 
 	// Sort the matches
-	sm := scipipe.NewProc("sm", fmt.Sprintf("sort %s %s -k1 {i:in} > {os:sort}", sortbuf, sortpar))
+	sm := scipipe.NewProc("sm", fmt.Sprintf("sort %s %s -k1 %s {i:in} > {os:sort}", sortbuf, sortpar, sortTmpDir))
 	sm.SetPathStatic("sort", path.Join(pipedir, "jrn_sort.txt"))
 
 	// Join the sorted matches with the reads
@@ -912,6 +913,12 @@ func makeTemp() {
 
 	pipedir = path.Join(tmpdir, "pipes")
 	err := os.MkdirAll(pipedir, 0755)
+	if err != nil {
+		panic(err)
+	}
+
+	sortTmpDir = path.Join(tmpdir, "sort")
+	err = os.MkdirAll(sortTmpDir, 0755)
 	if err != nil {
 		panic(err)
 	}

@@ -737,6 +737,7 @@ func handleArgs() {
 	MMTol := flag.Int("MMTol", 0, "Number of mismatches allowed above best fit")
 	StartPoint := flag.Int("StartPoint", 0, "Restart at a given point in the procedure")
 	MatchMode := flag.String("MatchMode", "", "'first' (retain first matches meeting criteria) or 'best' (returns best matches meeting criteria)")
+	NoCleanTmp := flag.Bool("NoCleanTmp", false, "Leave temporary files in TempDir")
 
 	flag.Parse()
 
@@ -793,6 +794,9 @@ func handleArgs() {
 	}
 	if *ResultsFileName != "" {
 		config.ResultsFileName = *ResultsFileName
+	}
+	if *NoCleanTmp {
+		config.NoCleanTmp = true
 	}
 
 	if config.ResultsFileName == "" {
@@ -1066,6 +1070,27 @@ func run() {
 	}
 }
 
+func clean() {
+
+	logger.Printf("Removing pipes...")
+	err := os.RemoveAll(pipedir)
+	if err != nil {
+		logger.Print("Can't remove pipes:")
+		logger.Print(err)
+		logger.Printf("Continuing anyway...\n")
+	}
+
+	if !config.NoCleanTmp {
+		logger.Printf("Removing temporary files...")
+		err := os.RemoveAll(tmpdir)
+		if err != nil {
+			logger.Print("Can't remove temporary files:")
+			logger.Print(err)
+			logger.Printf("Continuing anyway...\n")
+		}
+	}
+}
+
 func main() {
 
 	handleArgs()
@@ -1080,13 +1105,7 @@ func main() {
 
 	run()
 
-	logger.Printf("Removing pipes...")
-	err := os.RemoveAll(pipedir)
-	if err != nil {
-		logger.Print("Can't remove pipes:")
-		logger.Print(err)
-		logger.Printf("Continuing anyway...\n")
-	}
+	clean()
 
 	logger.Printf("All done, exiting")
 }

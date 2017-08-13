@@ -80,6 +80,11 @@ type Config struct {
 	// the MaxMatches matches for each window with the fewest
 	// mismatched values.
 	MatchMode string
+
+	// If true, temporary files are not removed upon program
+	// completion.  If false, which is the default, the temporary
+	// files are removed.
+	NoCleanTmp bool
 }
 
 func ReadConfig(filename string) *Config {

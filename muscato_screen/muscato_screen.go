@@ -183,7 +183,8 @@ type rec struct {
 }
 
 // checkWin returns the indices of the Bloom filters that match the
-// current state of the hashes.
+// current state of the hashes.  iw is workspace and hashses contains
+// the hashes that define the Bloom filters.
 func checkWin(ix []int, iw []uint64, hashes []rollinghash.Hash32) []int {
 
 	// Get the hash states

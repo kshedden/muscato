@@ -925,7 +925,7 @@ func makeTemp() {
 
 	if config.LogDir == "" {
 		logdir := path.Join("muscato_logs", path.Base(tmpdir))
-		err := os.MkdirAll(config.LogDir, 0755)
+		err := os.MkdirAll(logdir, 0755)
 		if err != nil {
 			panic(err)
 		}

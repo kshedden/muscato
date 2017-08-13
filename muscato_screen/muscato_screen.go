@@ -231,7 +231,7 @@ func processseq(seq []byte, genenum int) {
 	// Initialize the hashes with the first window.
 	hlen := config.WindowWidth
 	if len(seq) < hlen {
-		// Not long enough even for one window.
+		// Not long enough to fit even one window.
 		return
 	}
 	for j := range hashes {

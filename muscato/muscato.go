@@ -919,7 +919,7 @@ func makeTemp() {
 	if err != nil {
 		panic(err)
 	}
-	sortTmpDir = "-T " + sortTmpDir
+	sortTmpDir = "--temporary-directory=" + sortTmpDir
 }
 
 func writeNonMatch() {

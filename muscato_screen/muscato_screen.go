@@ -436,7 +436,7 @@ func search() {
 }
 
 func setupLogger() {
-	logname := path.Join(tmpdir, "muscato_screen.log")
+	logname := path.Join(config.LogDir, "muscato_screen.log")
 	logfid, err := os.Create(logname)
 	if err != nil {
 		panic(err)
@@ -467,8 +467,9 @@ func estimateFullness() {
 
 func main() {
 
-	if len(os.Args) != 3 {
-		panic("wrong number of arguments")
+	if len(os.Args) != 2 && len(os.Args) != 3 {
+		os.Stderr.WriteString(fmt.Sprintf("%s: wrong number of arguments", os.Args[0]))
+		os.Exit(1)
 	}
 
 	config = utils.ReadConfig(os.Args[1])

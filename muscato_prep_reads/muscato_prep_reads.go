@@ -8,6 +8,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"os"
 	"path"
@@ -90,7 +91,7 @@ func source() {
 }
 
 func setupLog() {
-	logname := path.Join(tmpdir, "muscato_prep_reads.log")
+	logname := path.Join(config.LogDir, "muscato_prep_reads.log")
 	fid, err := os.Create(logname)
 	if err != nil {
 		panic(err)
@@ -99,8 +100,9 @@ func setupLog() {
 }
 
 func main() {
-	if len(os.Args) != 3 {
-		panic("wrong number of arguments\n")
+	if len(os.Args) != 2 && len(os.Args) != 3 {
+		os.Stderr.WriteString(fmt.Sprintf("%s: wrong number of arguments\n", os.Args[0]))
+		os.Exit(1)
 	}
 
 	config = utils.ReadConfig(os.Args[1])

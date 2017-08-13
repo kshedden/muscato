@@ -83,10 +83,9 @@ import (
 )
 
 var (
-	jsonfile   string
 	startpoint int
 
-	tmpFilePath string
+	configFilePath string
 
 	config   *utils.Config
 	basename string
@@ -135,12 +134,12 @@ func pipefromsz(fname string) string {
 	panic("unable to create pipe")
 }
 
-func sortSource() {
+func prepReads() {
 
-	logger.Printf("starting sortSource")
+	logger.Printf("starting prepReads")
 
-	logger.Printf("Running prep_reads %s %s", tmpFilePath, tmpdir)
-	cmd0 := exec.Command("muscato_prep_reads", tmpFilePath, tmpdir)
+	logger.Printf("Running command: 'muscato_prep_reads %s'", configFilePath)
+	cmd0 := exec.Command("muscato_prep_reads", configFilePath)
 	cmd0.Env = os.Environ()
 	cmd0.Stderr = os.Stderr
 
@@ -250,13 +249,13 @@ func sortSource() {
 	}
 
 	logger.Printf(fmt.Sprintf("Wrote %d read sequences", nseq))
-	logger.Printf("sortSource done")
+	logger.Printf("prepReads done")
 }
 
 func windowReads() {
 	logger.Printf("starting windowReads")
-
-	cmd := exec.Command("muscato_window_reads", tmpFilePath, tmpdir)
+	logger.Printf("Running command: 'muscato_window_reads %s'\n", configFilePath)
+	cmd := exec.Command("muscato_window_reads", configFilePath)
 	cmd.Env = os.Environ()
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
@@ -313,9 +312,9 @@ func sortWindows() {
 }
 
 func screen() {
-	logger.Printf("starting screening")
-
-	cmd := exec.Command("muscato_screen", tmpFilePath, tmpdir)
+	logger.Printf("Starting screening")
+	logger.Printf("Running command: 'muscato_screen %s'\n", configFilePath)
+	cmd := exec.Command("muscato_screen", configFilePath)
 	cmd.Env = os.Environ()
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
@@ -387,7 +386,8 @@ func confirm() {
 		var cmds []*exec.Cmd
 		for k := fp; k < fp+nproc; k++ {
 			logger.Printf("Starting a round of confirmation processes")
-			cmd := exec.Command("muscato_confirm", tmpFilePath, fmt.Sprintf("%d", k), tmpdir)
+			logger.Printf("Running command: 'muscato_confirm %s %d'\n", configFilePath, k)
+			cmd := exec.Command("muscato_confirm", configFilePath, fmt.Sprintf("%d", k))
 			cmd.Env = os.Environ()
 			cmd.Stderr = os.Stderr
 			err := cmd.Start()
@@ -691,7 +691,7 @@ func joinReadNames() {
 }
 
 func setupLog() {
-	logname := path.Join(tmpdir, "muscato.log")
+	logname := path.Join(config.LogDir, "muscato.log")
 	fid, err := os.Create(logname)
 	if err != nil {
 		panic(err)
@@ -699,9 +699,9 @@ func setupLog() {
 	logger = log.New(fid, "", log.Ltime)
 }
 
-// copyConfig saves the configuration file in json format into the log
+// saveConfig saves the configuration file in json format into the log
 // directory.
-func copyConfig(config *utils.Config) {
+func saveConfig(config *utils.Config) {
 
 	fid, err := os.Create(path.Join(config.LogDir, "config.json"))
 	if err != nil {
@@ -713,7 +713,7 @@ func copyConfig(config *utils.Config) {
 	if err != nil {
 		panic(err)
 	}
-	tmpFilePath = path.Join(tmpdir, "config.json")
+	configFilePath = path.Join(config.LogDir, "config.json")
 }
 
 func handleArgs() {
@@ -741,8 +741,7 @@ func handleArgs() {
 	flag.Parse()
 
 	if *ConfigFileName != "" {
-		jsonfile = *ConfigFileName
-		config = utils.ReadConfig(jsonfile)
+		config = utils.ReadConfig(*ConfigFileName)
 	} else {
 		config = new(utils.Config)
 	}
@@ -898,14 +897,15 @@ func setupEnvs() {
 // Create the directory for all temporary files, if needed
 func makeTemp() {
 	if config.TempDir == "" {
-		err := os.MkdirAll("tmp", 0755)
+		err := os.MkdirAll("muscato_tmp", 0755)
 		if err != nil {
 			panic(err)
 		}
-		tmpdir, err = ioutil.TempDir("tmp", "")
+		tmpdir, err = ioutil.TempDir("muscato_tmp", "")
 		if err != nil {
 			panic(err)
 		}
+		config.TempDir = tmpdir
 	} else {
 		tmpdir = config.TempDir
 		err := os.MkdirAll(tmpdir, 0755)
@@ -914,10 +914,8 @@ func makeTemp() {
 		}
 	}
 
-	// The directory where all pipes are written (TODO: maybe
-	// always put this in /tmp, since afs filesytems don't support
-	// pipes).
-	pipedir = path.Join(tmpdir, "pipes")
+	// The directory where all pipes are written.
+	pipedir = path.Join("/tmp/muscato/pipes", path.Base(tmpdir))
 	err := os.MkdirAll(pipedir, 0755)
 	if err != nil {
 		panic(err)
@@ -1024,7 +1022,7 @@ func writeNonMatch() {
 
 func run() {
 	if startpoint <= 0 {
-		sortSource()
+		prepReads()
 	}
 
 	if startpoint <= 1 {
@@ -1074,13 +1072,21 @@ func main() {
 	checkArgs()
 	setupEnvs()
 	makeTemp()
-	copyConfig(config)
+	saveConfig(config)
 	setupLog()
 
 	logger.Printf("Storing temporary files in %s", tmpdir)
 	logger.Printf("Storing log files in %s", config.LogDir)
 
 	run()
+
+	logger.Printf("Removing pipes...")
+	err := os.RemoveAll(pipedir)
+	if err != nil {
+		logger.Print("Can't remove pipes:")
+		logger.Print(err)
+		logger.Printf("Continuing anyway...\n")
+	}
 
 	logger.Printf("All done, exiting")
 }

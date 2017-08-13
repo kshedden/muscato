@@ -319,7 +319,7 @@ E:
 }
 
 func setupLog(win int) {
-	logname := path.Join(tmpdir, fmt.Sprintf("muscato_confirm_%d.log", win))
+	logname := path.Join(config.LogDir, fmt.Sprintf("muscato_confirm_%d.log", win))
 	fid, err := os.Create(logname)
 	if err != nil {
 		panic(err)
@@ -342,8 +342,9 @@ func rcpy(r []*rec) []*rec {
 
 func main() {
 
-	if len(os.Args) != 4 {
-		panic("wrong number of arguments")
+	if len(os.Args) != 3 && len(os.Args) != 4 {
+		os.Stderr.WriteString(fmt.Sprintf("%s: wrong number of arguments", os.Args[0]))
+		os.Exit(1)
 	}
 
 	config = utils.ReadConfig(os.Args[1])

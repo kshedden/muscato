@@ -66,9 +66,9 @@ type Config struct {
 	// multi-mapping as well as possible.
 	MaxMatches int
 
-	// The maximum number of merge processes that are run
+	// The maximum number of confirmation processes that are run
 	// simultaneously.
-	MaxMergeProcs int
+	MaxConfirmProcs int
 
 	// Number of additional mismatches beyond the best possible
 	// number of mismatches that are allowed when retaining the

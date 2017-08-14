@@ -27,7 +27,7 @@
 //
 // muscato --ResultsFileName=results.txt --ReadFileName=reads.fastq --GeneFileName=genes.txt.sz --GeneIdFileName=1genes_ids.txt.sz
 //    --Windows=0,20,40,60,80 --WindowWidth=15 --BloomSize=4000000000 --NumHash=20 --PMatch=0.96 --MinDinuc=5 --MinReadLength=50
-//    --MaxMatches=1000000 --MaxMergeProcs=5 --MaxReadLength=300 --MatchMode=best --MMTol=2
+//    --MaxMatches=1000000 --MaxConfirmProcs=5 --MaxReadLength=300 --MatchMode=best --MMTol=2
 //
 // To use a JSON config file, create a file with the flag information in JSON format, e.g.
 //
@@ -271,7 +271,7 @@ func confirm() {
 	logger.Printf("Starting match confirmation")
 	fp := 0
 	for {
-		nproc := config.MaxMergeProcs
+		nproc := config.MaxConfirmProcs
 		if nproc > len(config.Windows)-fp {
 			nproc = len(config.Windows) - fp
 		}
@@ -629,10 +629,10 @@ func handleArgs() {
 	MinReadLength := flag.Int("MinReadLength", 0, "Reads shorter than this length are skipped")
 	MaxReadLength := flag.Int("MaxReadLength", 0, "Reads longer than this length are truncated")
 	MaxMatches := flag.Int("MaxMatches", 0, "Return no more than this number of matches per window")
-	MaxMergeProcs := flag.Int("MaxMergeProcs", 0, "Run this number of merge processes concurrently")
+	MaxConfirmProcs := flag.Int("MaxConfirmProcs", 0, "Run this number of match confirmation processes concurrently")
 	MMTol := flag.Int("MMTol", 0, "Number of mismatches allowed above best fit")
-	MatchMode := flag.String("MatchMode", "", "'first' (retain first matches meeting criteria) or 'best' (returns best matches meeting criteria)")
-	NoCleanTemp := flag.Bool("NoCleanTemp", false, "Leave temporary files in TempDir")
+	MatchMode := flag.String("MatchMode", "", "'first' or 'best' (retain first/best MaxMatches matches meeting criteria)")
+	NoCleanTemp := flag.Bool("NoCleanTemp", false, "Do not delete temporary files from TempDir")
 
 	flag.Parse()
 
@@ -678,8 +678,8 @@ func handleArgs() {
 	if *MaxMatches != 0 {
 		config.MaxMatches = *MaxMatches
 	}
-	if *MaxMergeProcs != 0 {
-		config.MaxMergeProcs = *MaxMergeProcs
+	if *MaxConfirmProcs != 0 {
+		config.MaxConfirmProcs = *MaxConfirmProcs
 	}
 	if *MatchMode != "" {
 		config.MatchMode = *MatchMode
@@ -759,9 +759,9 @@ func checkArgs() {
 		os.Stderr.WriteString("MaxMatches not provided, defaulting to 1 million\n\n")
 		config.MaxMatches = 1000 * 1000
 	}
-	if config.MaxMergeProcs == 0 {
-		os.Stderr.WriteString("MaxMergeProcs not provided, defaulting to 3\n\n")
-		config.MaxMergeProcs = 3
+	if config.MaxConfirmProcs == 0 {
+		os.Stderr.WriteString("MaxConfirmProcs not provided, defaulting to 3\n\n")
+		config.MaxConfirmProcs = 3
 	}
 	if !strings.HasSuffix(config.ReadFileName, ".fastq") {
 		msg := fmt.Sprintf("Warning: %s may not be a fastq file, continuing anyway\n\n",

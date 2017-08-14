@@ -72,7 +72,7 @@ produced by the `muscato_prep_targets` script, to be run as shown
 above.
 
 Many other command-line flags are available, run `muscato --help` for
-more information.
+more information.  The output of muscato --help is [here](help.md).
 
 The results by default are written to a file named `results.txt`, a
 tab delimited file with the following columns:

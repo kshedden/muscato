@@ -51,7 +51,7 @@ import (
 
 const (
 	// Number of goroutines, should probably scale with the number
-	// of aailable cores.
+	// of available cores.
 	concurrency int = 100
 )
 
@@ -253,7 +253,8 @@ func processseq(seq []byte, genenum int) {
 
 		q1 := config.Windows[i]
 		if q1 != 0 {
-			// The only way the read can fit is if the
+			// The only way the full read can match at the
+			// beginning of the target is if the first
 			// window starts at the beginning of the read.
 			continue
 		}
@@ -383,6 +384,8 @@ func harvest(wg *sync.WaitGroup) {
 // collection.
 func search() {
 
+	logger.Printf("Checking target sequences for matches...")
+
 	fid, err := os.Open(config.GeneFileName)
 	if err != nil {
 		logger.Print(err)
@@ -432,7 +435,7 @@ func search() {
 
 	close(hitchan)
 	wg.Wait()
-	logger.Printf("done with search")
+	logger.Printf("Done checking target sequences for matches")
 }
 
 func setupLogger() {

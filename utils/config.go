@@ -84,7 +84,7 @@ type Config struct {
 	// If true, temporary files are not removed upon program
 	// completion.  If false, which is the default, the temporary
 	// files are removed.
-	NoCleanTmp bool
+	NoCleanTemp bool
 }
 
 func ReadConfig(filename string) *Config {

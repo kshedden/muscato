@@ -280,7 +280,7 @@ func sortBloom() {
 
 func confirm() {
 
-	logger.Printf("starting match confirmation")
+	logger.Printf("Starting match confirmation")
 	fp := 0
 	for {
 		nproc := config.MaxMergeProcs
@@ -314,7 +314,7 @@ func confirm() {
 		fp += nproc
 	}
 
-	logger.Printf("match confirmation done")
+	logger.Printf("Match confirmation done")
 }
 
 // writebest accepts a set of lines (lines), which have also been
@@ -644,7 +644,7 @@ func handleArgs() {
 	MaxMergeProcs := flag.Int("MaxMergeProcs", 0, "Run this number of merge processes concurrently")
 	MMTol := flag.Int("MMTol", 0, "Number of mismatches allowed above best fit")
 	MatchMode := flag.String("MatchMode", "", "'first' (retain first matches meeting criteria) or 'best' (returns best matches meeting criteria)")
-	NoCleanTmp := flag.Bool("NoCleanTmp", false, "Leave temporary files in TempDir")
+	NoCleanTemp := flag.Bool("NoCleanTemp", false, "Leave temporary files in TempDir")
 
 	flag.Parse()
 
@@ -702,8 +702,8 @@ func handleArgs() {
 	if *ResultsFileName != "" {
 		config.ResultsFileName = *ResultsFileName
 	}
-	if *NoCleanTmp {
-		config.NoCleanTmp = true
+	if *NoCleanTemp {
+		config.NoCleanTemp = true
 	}
 
 	if config.ResultsFileName == "" {
@@ -946,8 +946,7 @@ func run() {
 	writeNonMatch()
 }
 
-func clean() {
-
+func cleanPipes() {
 	logger.Printf("Removing pipes...")
 	err := os.RemoveAll(pipedir)
 	if err != nil {
@@ -955,8 +954,10 @@ func clean() {
 		logger.Print(err)
 		logger.Printf("Continuing anyway...\n")
 	}
+}
 
-	if !config.NoCleanTmp {
+func cleanTmp() {
+	if !config.NoCleanTemp {
 		logger.Printf("Removing temporary files...")
 		err := os.RemoveAll(config.TempDir)
 		if err != nil {
@@ -969,7 +970,8 @@ func clean() {
 
 func main() {
 
-	defer clean()
+	defer cleanPipes()
+	defer cleanTmp()
 
 	handleArgs()
 	checkArgs()

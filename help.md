@@ -1,3 +1,4 @@
+```
 Usage of muscato:
   -BloomSize int
     	Size of Bloom filter, in bits
@@ -37,3 +38,4 @@ Usage of muscato:
     	Width of each window
   -Windows string
     	Starting position of each window
+```

@@ -36,7 +36,14 @@ Files = [["genes_ids.txt.sz", "genes_ids_e.txt"],
 Name = "muscato 1"
 Base = "data/muscato/00"
 Command = "muscato"
-Opts = ["-ConfigFileName=data/muscato/00/config.json"]
+Opts = ["-ConfigFileName=data/muscato/00/config.json", "--NoCleanTemp"]
 Files = [["result.txt", "result_e.txt"],
          ["result.nonmatch.txt.fastq", "result.nonmatch_e.txt"]]
-Remove = ["tmp"]
+
+[[Test]]
+Name = "muscato 2"
+Base = "data/muscato/01"
+Command = "muscato"
+Opts = ["-ConfigFileName=data/muscato/01/config.json", "--NoCleanTemp"]
+Files = [["result.txt", "result_e.txt"],
+         ["result.nonmatch.txt.fastq", "result.nonmatch_e.txt"]]

@@ -1,0 +1,26 @@
+{
+    "Command": "join -1 1 -2 1 -t'\t' /tmp/muscato/pipes/2d54688d-80a9-11e7-8850-d89d67f45467/jrn_sort.txt.fifo /tmp/muscato/pipes/2d54688d-80a9-11e7-8850-d89d67f45467/jrn_rd.txt.fifo \u003e data/muscato/01/result.txt.tmp",
+    "Params": {},
+    "ExecutionTimeMilliSeconds": 10,
+    "UpstreamAuditInfos": {
+        "/tmp/muscato/pipes/2d54688d-80a9-11e7-8850-d89d67f45467/jrn_rd.txt": {
+            "Command": "sztool -d muscato_tmp/2d54688d-80a9-11e7-8850-d89d67f45467/reads_sorted.txt.sz \u003e /tmp/muscato/pipes/2d54688d-80a9-11e7-8850-d89d67f45467/jrn_rd.txt.fifo",
+            "Params": {},
+            "ExecutionTimeMilliSeconds": 12,
+            "UpstreamAuditInfos": {}
+        },
+        "/tmp/muscato/pipes/2d54688d-80a9-11e7-8850-d89d67f45467/jrn_sort.txt": {
+            "Command": "sort -S 2G --parallel=8 -k1 --temporary-directory=muscato_tmp/2d54688d-80a9-11e7-8850-d89d67f45467/sort /tmp/muscato/pipes/2d54688d-80a9-11e7-8850-d89d67f45467/jrn_ma.txt.fifo \u003e /tmp/muscato/pipes/2d54688d-80a9-11e7-8850-d89d67f45467/jrn_sort.txt.fifo",
+            "Params": {},
+            "ExecutionTimeMilliSeconds": 10,
+            "UpstreamAuditInfos": {
+                "/tmp/muscato/pipes/2d54688d-80a9-11e7-8850-d89d67f45467/jrn_ma.txt": {
+                    "Command": "sztool -d muscato_tmp/2d54688d-80a9-11e7-8850-d89d67f45467/matches_sn.txt.sz \u003e /tmp/muscato/pipes/2d54688d-80a9-11e7-8850-d89d67f45467/jrn_ma.txt.fifo",
+                    "Params": {},
+                    "ExecutionTimeMilliSeconds": 15,
+                    "UpstreamAuditInfos": {}
+                }
+            }
+        }
+    }
+}

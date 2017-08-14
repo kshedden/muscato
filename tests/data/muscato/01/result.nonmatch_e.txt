@@ -1,0 +1,4 @@
+>read4_nonmatching;>read6_copy
+GTACGCATCC
++
+!!!!!!!!!!

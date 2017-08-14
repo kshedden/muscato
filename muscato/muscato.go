@@ -146,30 +146,18 @@ func prepReads() {
 	sr.SetPathStatic("outsort", path.Join(pipedir, "pr_outsort"))
 
 	// Uniqify and count duplicates
-	c = fmt.Sprintf("uniq -c {i:inuniq} > {os:outuniq}")
-	logger.Printf(c)
-	ur := scipipe.NewProc("ur", c)
-	ur.SetPathStatic("outuniq", path.Join(pipedir, "pr_outuniq"))
-
-	// Rearrange columns
-	c = `awk '{print $2, $1, $3}' OFS="\t" {i:inawk} > {os:outawk}`
-	logger.Printf(c)
-	ak := scipipe.NewProc("ak", c)
-	ak.SetPathStatic("outawk", path.Join(pipedir, "pr_outawk"))
-
-	// Compress results
 	outname := path.Join(config.TempDir, "reads_sorted.txt.sz")
-	wr := scipipe.NewProc("wr", fmt.Sprintf("sztool -c {i:inw} %s", outname))
+	c = fmt.Sprintf("muscato_uniqify {i:inuniq} > %s", outname)
+	logger.Printf(c)
+	mu := scipipe.NewProc("mu", c)
 
 	// Connect the network
 	sr.In("insort").Connect(dc.Out("mpr_out"))
-	ur.In("inuniq").Connect(sr.Out("outsort"))
-	ak.In("inawk").Connect(ur.Out("outuniq"))
-	wr.In("inw").Connect(ak.Out("outawk"))
+	mu.In("inuniq").Connect(sr.Out("outsort"))
 
 	wf := scipipe.NewWorkflow("pr")
-	wf.AddProcs(dc, sr, ur, ak, wr)
-	wf.SetDriver(wr)
+	wf.AddProcs(dc, sr, mu)
+	wf.SetDriver(mu)
 	wf.Run()
 
 	logger.Printf("prepReads done")

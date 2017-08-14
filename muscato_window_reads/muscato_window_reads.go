@@ -60,6 +60,7 @@ func main() {
 
 	// Setup input reader
 	fname := path.Join(tmpdir, "reads_sorted.txt.sz")
+	logger.Printf("Reading reads from %s", fname)
 	fid, err := os.Open(fname)
 	if err != nil {
 		panic(err)
@@ -87,7 +88,7 @@ func main() {
 		wtrs = append(wtrs, wtr)
 	}
 
-	wk := make([]int, 25)
+	wk := make([]int, 25) // 25 = 5^2 = number of dinucleotides
 
 	nread := make([]int, len(config.Windows))
 	for jj := 0; scanner.Scan(); jj++ {

@@ -633,6 +633,7 @@ func handleArgs() {
 	NoCleanTemp := flag.Bool("NoCleanTemp", false, "Do not delete temporary files from TempDir")
 	SortPar := flag.Int("SortPar", 8, "Number of parallel sort processes")
 	SortMem := flag.Int("SortMem", 2, "Memory to use when sorting (in GB)")
+	SortTemp := flag.String("SortTemp", "", "Directory to use for sort temp files")
 
 	flag.Parse()
 
@@ -696,6 +697,18 @@ func handleArgs() {
 
 	sortmem = fmt.Sprintf("-S %dG", *SortMem)
 	sortpar = fmt.Sprintf("--parallel=%d", *SortPar)
+
+	// Configure the temporary directory for sort.
+	if *SortTemp != "" {
+		sortTmpFlag = fmt.Sprintf("--temporary-director=%s", *SortTemp)
+	} else {
+		sortTmpFlag = path.Join(config.TempDir, "sort")
+		err := os.MkdirAll(sortTmpFlag, 0755)
+		if err != nil {
+			panic(err)
+		}
+		sortTmpFlag = "--temporary-directory=" + sortTmpFlag
+	}
 
 	if config.ResultsFileName == "" {
 		print("ResultsFileName must be specified.  Run 'muscato --help' for more information.\n\n")
@@ -833,13 +846,6 @@ func makeTemp() {
 		panic(err)
 	}
 
-	// Configure the temporary directory for sort.
-	sortTmpFlag = path.Join(config.TempDir, "sort")
-	err = os.MkdirAll(sortTmpFlag, 0755)
-	if err != nil {
-		panic(err)
-	}
-	sortTmpFlag = "--temporary-directory=" + sortTmpFlag
 }
 
 func writeNonMatch() {

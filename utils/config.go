@@ -81,6 +81,12 @@ type Config struct {
 	// mismatched values.
 	MatchMode string
 
+	// The memory to use for sorting.
+	SortMem int
+
+	// The number of parallel processes to use for sorting.
+	SortPar int
+
 	// If true, temporary files are not removed upon program
 	// completion.  If false, which is the default, the temporary
 	// files are removed.

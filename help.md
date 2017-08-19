@@ -11,7 +11,7 @@ Usage of muscato:
   -MMTol int
     	Number of mismatches allowed above best fit
   -MatchMode string
-    	'first' or 'best' (retain first/best MaxMatches matches meeting criteria)
+    	'first' or 'best' (retain first/best 'MaxMatches' matches meeting criteria)
   -MaxConfirmProcs int
     	Run this number of match confirmation processes concurrently
   -MaxMatches int
@@ -32,6 +32,10 @@ Usage of muscato:
     	Sequencing read file (fastq format)
   -ResultsFileName string
     	File name for results
+  -SortMem int
+    	Memory to use when sorting (in GB) (default 2)
+  -SortPar int
+    	Number of parallel sort processes (default 8)
   -TempDir string
     	Workspace for temporary files
   -WindowWidth int

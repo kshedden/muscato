@@ -92,11 +92,9 @@ var (
 
 	// Flag for setting the tmp file location for sorting.
 	sortTmpFlag string
-)
 
-const (
-	sortbuf string = "-S 2G"
-	sortpar string = "--parallel=8"
+	sortmem string
+	sortpar string
 )
 
 func pipename() string {
@@ -140,7 +138,7 @@ func prepReads() {
 	dc.SetPathStatic("mpr_out", path.Join(pipedir, "pr_mpr"))
 
 	// Sort the output of muscato_prep_reads
-	c := fmt.Sprintf("sort %s %s %s {i:insort} > {os:outsort}", sortbuf, sortpar, sortTmpFlag)
+	c := fmt.Sprintf("sort %s %s %s {i:insort} > {os:outsort}", sortmem, sortpar, sortTmpFlag)
 	logger.Printf(c)
 	sr := scipipe.NewProc("sr", c)
 	sr.SetPathStatic("outsort", path.Join(pipedir, "pr_outsort"))
@@ -191,7 +189,7 @@ func sortWindows() {
 		dc.SetPathStatic("dx", path.Join(pipedir, fmt.Sprintf("sw_dc_%d", k)))
 
 		// Sort the matches
-		sc := fmt.Sprintf("sort %s %s -k1 %s {i:in} > {o:sort}", sortbuf, sortpar, sortTmpFlag)
+		sc := fmt.Sprintf("sort %s %s -k1 %s {i:in} > {o:sort}", sortmem, sortpar, sortTmpFlag)
 		sm := scipipe.NewProc("sm", sc)
 		logger.Printf(sc)
 		sm.SetPathStatic("sort", path.Join(pipedir, fmt.Sprintf("sw_sort_%d", k)))
@@ -242,7 +240,7 @@ func sortBloom() {
 		dc.SetPathStatic("dx", path.Join(pipedir, fmt.Sprintf("sb_dc_%d", k)))
 
 		// Sort the matches
-		c := fmt.Sprintf("sort %s %s -k1 %s {i:in} > {os:sort}", sortbuf, sortpar, sortTmpFlag)
+		c := fmt.Sprintf("sort %s %s -k1 %s {i:in} > {os:sort}", sortmem, sortpar, sortTmpFlag)
 		logger.Printf(c)
 		sm := scipipe.NewProc("sm", c)
 		sm.SetPathStatic("sort", path.Join(pipedir, fmt.Sprintf("sb_sort_%d", k)))
@@ -349,7 +347,7 @@ func combineWindows() {
 	mmtol := config.MMTol
 
 	// Pipe everything into one sort/unique
-	c0 := exec.Command("sort", sortbuf, sortpar, sortTmpFlag, "-u", "-")
+	c0 := exec.Command("sort", sortmem, sortpar, sortTmpFlag, "-u", "-")
 	c0.Env = os.Environ()
 	c0.Stderr = os.Stderr
 	cmds := []*exec.Cmd{c0}
@@ -462,7 +460,7 @@ func sortByGeneId() {
 	cmd1.Env = os.Environ()
 	cmd1.Stderr = os.Stderr
 	// k5 is position of gene id
-	cmd2 := exec.Command("sort", sortbuf, sortpar, sortTmpFlag, "-k5", "-")
+	cmd2 := exec.Command("sort", sortmem, sortpar, sortTmpFlag, "-k5", "-")
 	cmd2.Env = os.Environ()
 	cmd2.Stderr = os.Stderr
 	var err error
@@ -563,7 +561,7 @@ func joinReadNames() {
 	rd.SetPathStatic("rd", path.Join(pipedir, "jrn_rd.txt"))
 
 	// Sort the matches
-	sm := scipipe.NewProc("sm", fmt.Sprintf("sort %s %s -k1 %s {i:in} > {os:sort}", sortbuf, sortpar, sortTmpFlag))
+	sm := scipipe.NewProc("sm", fmt.Sprintf("sort %s %s -k1 %s {i:in} > {os:sort}", sortmem, sortpar, sortTmpFlag))
 	sm.SetPathStatic("sort", path.Join(pipedir, "jrn_sort.txt"))
 
 	// Join the sorted matches with the reads
@@ -631,8 +629,10 @@ func handleArgs() {
 	MaxMatches := flag.Int("MaxMatches", 0, "Return no more than this number of matches per window")
 	MaxConfirmProcs := flag.Int("MaxConfirmProcs", 0, "Run this number of match confirmation processes concurrently")
 	MMTol := flag.Int("MMTol", 0, "Number of mismatches allowed above best fit")
-	MatchMode := flag.String("MatchMode", "", "'first' or 'best' (retain first/best MaxMatches matches meeting criteria)")
+	MatchMode := flag.String("MatchMode", "", "'first' or 'best' (retain first/best 'MaxMatches' matches meeting criteria)")
 	NoCleanTemp := flag.Bool("NoCleanTemp", false, "Do not delete temporary files from TempDir")
+	SortPar := flag.Int("SortPar", 8, "Number of parallel sort processes")
+	SortMem := flag.Int("SortMem", 2, "Memory to use when sorting (in GB)")
 
 	flag.Parse()
 
@@ -693,6 +693,9 @@ func handleArgs() {
 	if *NoCleanTemp {
 		config.NoCleanTemp = true
 	}
+
+	sortmem = fmt.Sprintf("-S %dG", *SortMem)
+	sortpar = fmt.Sprintf("--parallel=%d", *SortPar)
 
 	if config.ResultsFileName == "" {
 		print("ResultsFileName must be specified.  Run 'muscato --help' for more information.\n\n")

@@ -695,12 +695,22 @@ func handleArgs() {
 		config.NoCleanTemp = true
 	}
 
-	sortmem = fmt.Sprintf("-S %dG", *SortMem)
+	if *SortMem != 0 {
+		config.SortMem = *SortMem
+	}
+	sortmem = fmt.Sprintf("-S %dG", config.SortMem)
+
+	if *SortPar != 0 {
+		config.SortPar = *SortPar
+	}
 	sortpar = fmt.Sprintf("--parallel=%d", *SortPar)
 
 	// Configure the temporary directory for sort.
 	if *SortTemp != "" {
-		sortTmpFlag = fmt.Sprintf("--temporary-director=%s", *SortTemp)
+		config.SortTemp = *SortTemp
+	}
+	if config.SortTemp != "" {
+		sortTmpFlag = fmt.Sprintf("--temporary-director=%s", config.SortTemp)
 	} else {
 		sortTmpFlag = path.Join(config.TempDir, "sort")
 		err := os.MkdirAll(sortTmpFlag, 0755)

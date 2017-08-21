@@ -87,6 +87,10 @@ type Config struct {
 	// The number of parallel processes to use for sorting.
 	SortPar int
 
+	// The temporary directory for GNU sort.  If not specified,
+	// use TempDir/sort.
+	SortTemp string
+
 	// If true, temporary files are not removed upon program
 	// completion.  If false, which is the default, the temporary
 	// files are removed.

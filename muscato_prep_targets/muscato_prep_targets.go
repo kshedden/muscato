@@ -55,7 +55,6 @@ func revcomp(seq []byte) []byte {
 			b[m-i] = 'G'
 		case 'X':
 			b[m-i] = 'X'
-
 		}
 	}
 	return b
@@ -79,7 +78,8 @@ func processText(scanner *bufio.Scanner, idout, seqout io.Writer, rev bool) {
 
 	logger.Print("Processing text format file...")
 
-	for lnum := 0; scanner.Scan(); lnum++ {
+	var lnum int
+	for scanner.Scan() {
 
 		if lnum%1000000 == 0 {
 			logger.Printf("%d\n", lnum)
@@ -112,11 +112,13 @@ func processText(scanner *bufio.Scanner, idout, seqout io.Writer, rev bool) {
 		if err != nil {
 			panic(err)
 		}
+		lnum++
 		if rev {
 			_, err = idout.Write([]byte(fmt.Sprintf("%011d\t%s_r\t%d\n", lnum, nam, len(seq))))
 			if err != nil {
 				panic(err)
 			}
+			lnum++
 		}
 	}
 
@@ -142,18 +144,15 @@ func processFasta(scanner *bufio.Scanner, idout, seqout io.Writer, rev bool) {
 		}
 
 		// Write the gene id
+		x = ""
 		if r {
-			_, err = idout.Write([]byte(fmt.Sprintf("%011d\t%s_r\t%d\n", lnum, seqname, len(seq))))
-			if err != nil {
-				panic(err)
-			}
-		} else {
-			_, err = idout.Write([]byte(fmt.Sprintf("%011d\t%s\t%d\n", lnum, seqname, len(seq))))
-			if err != nil {
-				panic(err)
-			}
+			x = "_r"
 		}
-		lnum++
+
+		_, err = idout.Write([]byte(fmt.Sprintf("%011d\t%s%s\t%d\n", lnum, seqname, x, len(seq))))
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	for scanner.Scan() {
@@ -168,9 +167,11 @@ func processFasta(scanner *bufio.Scanner, idout, seqout io.Writer, rev bool) {
 			if len(seq) > 0 {
 				subx(seq)
 				flush(false)
+				lnum++
 				if rev {
 					seq = revcomp(seq)
 					flush(true)
+					lnum++
 				}
 			}
 			seqname = string(line)
@@ -253,8 +254,8 @@ func main() {
 	args := flag.Args()
 
 	if len(args) != 1 {
-		os.Stderr.WriteString("prep_targets: usage\n")
-		os.Stderr.WriteString("  prep_targets [-rev] genefile\n\n")
+		os.Stderr.WriteString("muscato_prep_targets: usage\n")
+		os.Stderr.WriteString("  muscato_prep_targets [-rev] genefile\n\n")
 		os.Exit(1)
 	}
 

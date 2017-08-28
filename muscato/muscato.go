@@ -992,5 +992,5 @@ func main() {
 
 	run()
 
-	logger.Printf("All done, exiting")
+	logger.Printf("All done, exit after cleanup")
 }

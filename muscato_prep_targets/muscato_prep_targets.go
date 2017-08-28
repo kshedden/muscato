@@ -144,7 +144,7 @@ func processFasta(scanner *bufio.Scanner, idout, seqout io.Writer, rev bool) {
 		}
 
 		// Write the gene id
-		x = ""
+		x := ""
 		if r {
 			x = "_r"
 		}
@@ -188,9 +188,11 @@ func processFasta(scanner *bufio.Scanner, idout, seqout io.Writer, rev bool) {
 
 	if len(seq) > 0 {
 		flush(false)
+		lnum++
 		if rev {
 			seq = revcomp(seq)
 			flush(true)
+			lnum++
 		}
 	}
 }

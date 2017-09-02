@@ -229,7 +229,7 @@ func targets(genefile string, rev bool) {
 
 	// Setup a scanner to read long lines
 	scanner := bufio.NewScanner(inf)
-	sbuf := make([]byte, maxline)
+	sbuf := make([]byte, 64*1024)
 	scanner.Buffer(sbuf, maxline)
 
 	if fasta {

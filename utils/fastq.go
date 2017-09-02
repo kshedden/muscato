@@ -23,6 +23,8 @@ func NewReadInSeq(seqfile, dpath string) *ReadInSeq {
 	}
 
 	scanner := bufio.NewScanner(inf)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 1024*1024)
 
 	return &ReadInSeq{
 		file:    inf,

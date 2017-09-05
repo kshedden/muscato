@@ -100,7 +100,7 @@ func genTables() {
 }
 
 // buildBloom constructs bloom filters for each window
-func buildBloom() {
+func buildBloom() error {
 
 	logger.Printf("Building Bloom sketch of read collection...")
 
@@ -112,8 +112,7 @@ func buildBloom() {
 	fname := path.Join(tmpdir, "reads_sorted.txt.sz")
 	fid, err := os.Open(fname)
 	if err != nil {
-		logger.Print(err)
-		panic(err)
+		return err
 	}
 	defer fid.Close()
 	snr := snappy.NewReader(fid)
@@ -151,13 +150,12 @@ func buildBloom() {
 				ha.Reset()
 				_, err = ha.Write(seqw)
 				if err != nil {
-					panic(err)
+					return err
 				}
 				x := uint64(ha.Sum32()) % config.BloomSize
 				err := smp[k].SetBit(x)
 				if err != nil {
-					logger.Print(err)
-					panic(err)
+					return err
 				}
 			}
 		}
@@ -166,11 +164,11 @@ func buildBloom() {
 	if err := scanner.Err(); err != nil {
 		msg := fmt.Sprintf("Problem reading reads_sorted.txt.sz on line %d\n", j)
 		os.Stderr.WriteString(msg)
-		logger.Print(err)
-		panic(err)
+		return err
 	}
 
 	logger.Printf("Done constructing Bloom filters")
+	return nil
 }
 
 type rec struct {
@@ -185,7 +183,7 @@ type rec struct {
 // checkWin returns the indices of the Bloom filters that match the
 // current state of the hashes.  iw is workspace and hashses contains
 // the hashes that define the Bloom filters.
-func checkWin(ix []int, iw []uint64, hashes []rollinghash.Hash32) []int {
+func checkWin(ix []int, iw []uint64, hashes []rollinghash.Hash32) ([]int, error) {
 
 	// Get the hash states
 	for j, ha := range hashes {
@@ -202,8 +200,7 @@ func checkWin(ix []int, iw []uint64, hashes []rollinghash.Hash32) []int {
 		for j := range hashes {
 			f, err := ba.GetBit(iw[j])
 			if err != nil {
-				logger.Print(err)
-				panic(err)
+				return nil, err
 			}
 			if !f {
 				g = false
@@ -215,11 +212,11 @@ func checkWin(ix []int, iw []uint64, hashes []rollinghash.Hash32) []int {
 		}
 	}
 
-	return ix
+	return ix, nil
 }
 
 // process one target sequence, runs concurrently with main loop.
-func processseq(seq []byte, genenum int) {
+func processseq(seq []byte, genenum int, errc chan error) {
 
 	defer func() { <-limit }()
 
@@ -237,7 +234,8 @@ func processseq(seq []byte, genenum int) {
 	for j := range hashes {
 		_, err := hashes[j].Write(seq[0:hlen])
 		if err != nil {
-			panic(err)
+			errc <- err
+			return
 		}
 	}
 
@@ -248,7 +246,13 @@ func processseq(seq []byte, genenum int) {
 	iw := make([]uint64, config.NumHash)
 
 	// Check if the initial window is a match
-	ix = checkWin(ix, iw, hashes)
+	var err error
+	ix, err = checkWin(ix, iw, hashes)
+	if err != nil {
+		errc <- err
+		return
+	}
+
 	for _, i := range ix {
 
 		q1 := config.Windows[i]
@@ -280,7 +284,11 @@ func processseq(seq []byte, genenum int) {
 		for _, ha := range hashes {
 			ha.Roll(seq[j])
 		}
-		ix = checkWin(ix, iw, hashes)
+		ix, err = checkWin(ix, iw, hashes)
+		if err != nil {
+			errc <- err
+			return
+		}
 
 		// Process a match
 		for _, i := range ix {
@@ -382,14 +390,13 @@ func harvest(wg *sync.WaitGroup) {
 // search loops through the target sequences, checking each window
 // within each target gene for possible matches to the read
 // collection.
-func search() {
+func search() error {
 
 	logger.Printf("Checking target sequences for matches...")
 
 	fid, err := os.Open(config.GeneFileName)
 	if err != nil {
-		logger.Print(err)
-		panic(err)
+		return err
 	}
 	defer fid.Close()
 	snr := snappy.NewReader(fid)
@@ -401,6 +408,7 @@ func search() {
 
 	hitchan = make(chan rec)
 	limit = make(chan bool, concurrency)
+	errc := make(chan error, concurrency)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -419,35 +427,43 @@ func search() {
 		seq := toks[0] // The sequence
 
 		limit <- true
-		go processseq([]byte(seq), i)
+		go processseq([]byte(seq), i, errc)
 	}
 
 	if err := scanner.Err(); err != nil {
 		msg := fmt.Sprintf("Problem reading %s on line %d\n", config.GeneFileName, i)
 		os.Stderr.WriteString(msg)
 		logger.Print(err)
-		panic(err)
+		return err
 	}
 
 	for k := 0; k < concurrency; k++ {
 		limit <- true
 	}
 
+	// Get an error if one was generated
+	e, ok := <-errc
+	if ok {
+		log.Fatal(e)
+	}
+
 	close(hitchan)
 	wg.Wait()
 	logger.Printf("Done checking target sequences for matches")
+	return nil
 }
 
-func setupLogger() {
+func setupLogger() error {
 	logname := path.Join(config.LogDir, "muscato_screen.log")
 	logfid, err := os.Create(logname)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	logger = log.New(logfid, "", log.Ltime)
+	return nil
 }
 
-func estimateFullness() {
+func estimateFullness() error {
 
 	n := 1000
 	logger.Printf("Bloom filter fill rates:\n")
@@ -458,7 +474,7 @@ func estimateFullness() {
 			i := uint64(rand.Int63()) % config.BloomSize
 			f, err := ba.GetBit(i)
 			if err != nil {
-				panic(err)
+				return err
 			}
 			if f {
 				c++
@@ -466,6 +482,8 @@ func estimateFullness() {
 		}
 		logger.Printf("%3d %.3f\n", j, float64(c)/float64(n))
 	}
+
+	return nil
 }
 
 func main() {
@@ -485,7 +503,11 @@ func main() {
 
 	bufsize = config.MaxReadLength + 50
 
-	setupLogger()
+	err := setupLogger()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	genTables()
 
 	smp = make([]bitarray.BitArray, len(config.Windows))
@@ -493,7 +515,18 @@ func main() {
 		smp[k] = bitarray.NewBitArray(config.BloomSize)
 	}
 
-	buildBloom()
-	estimateFullness()
-	search()
+	err = buildBloom()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = estimateFullness()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = search()
+	if err != nil {
+		log.Fatal(err)
+	}
 }

@@ -360,7 +360,7 @@ func main() {
 	var err error
 	win, err = strconv.Atoi(os.Args[2])
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	setupLog(win)
 

@@ -880,7 +880,7 @@ func writeNonMatch() {
 		bf.Add(f[0])
 	}
 	if err := scanner.Err(); err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	// Open the nonmatch output file
@@ -902,37 +902,29 @@ func writeNonMatch() {
 	rfname := path.Join(config.TempDir, "reads_sorted.txt.sz")
 	inf, err = os.Open(rfname)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	defer inf.Close()
 	rdr := snappy.NewReader(inf)
 	scanner = bufio.NewScanner(rdr)
+	var buf bytes.Buffer
 	for scanner.Scan() {
 		f := bytes.Fields(scanner.Bytes())
 		if !bf.Test(f[0]) {
-			_, err := wtr.Write(f[2])
-			if err != nil {
-				panic(err)
+			buf.Reset()
+			buf.Write(f[2])
+			buf.WriteString("#")
+			buf.Write(f[1])
+			buf.WriteString("\n")
+			buf.Write(f[0])
+			buf.WriteString("\n+\n")
+			for k := 0; k < len(f[0]); k++ {
+				buf.WriteString("!")
 			}
-			_, err = wtr.Write([]byte("\n"))
+			buf.WriteString("\n")
+			_, err = wtr.Write(buf.Bytes())
 			if err != nil {
-				panic(err)
-			}
-			_, err = wtr.Write(f[0])
-			if err != nil {
-				panic(err)
-			}
-			_, err = wtr.Write([]byte("\n+\n"))
-			if err != nil {
-				panic(err)
-			}
-			_, err = wtr.Write(bytes.Repeat([]byte{'!'}, len(f[0])))
-			if err != nil {
-				panic(err)
-			}
-			_, err = wtr.Write([]byte("\n"))
-			if err != nil {
-				panic(err)
+				log.Fatal(err)
 			}
 		}
 	}

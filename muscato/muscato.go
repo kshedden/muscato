@@ -66,6 +66,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -145,7 +146,7 @@ func prepReads() {
 
 	// Uniqify and count duplicates
 	outname := path.Join(config.TempDir, "reads_sorted.txt.sz")
-	c = fmt.Sprintf("muscato_uniqify {i:inuniq} > %s", outname)
+	c = fmt.Sprintf("muscato_uniqify %s {i:inuniq} > %s", configFilePath, outname)
 	logger.Printf(c)
 	mu := scipipe.NewProc("mu", c)
 
@@ -941,6 +942,7 @@ func writeNonMatch() {
 
 func run() {
 	prepReads()
+	perfInfo()
 	windowReads()
 	sortWindows()
 	screen()
@@ -973,6 +975,32 @@ func cleanTmp() {
 			logger.Printf("Continuing anyway...\n")
 		}
 	}
+}
+
+func perfInfo() {
+
+	// Number of possible k-mers
+	wf := math.Pow(4, float64(config.WindowWidth))
+
+	var inf struct {
+		NumUnique int
+		NumTotal  int
+	}
+
+	fid, err := os.Open(path.Join(config.LogDir, "seqinfo.json"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	dec := json.NewDecoder(fid)
+	err = dec.Decode(&inf)
+	if err != nil {
+		panic(err)
+	}
+
+	// Fill rate of the k-mer set inclusion function.
+	ff := float64(inf.NumUnique) / wf
+
+	logger.Printf("k-mer sketch fill rate: %.5f", ff)
 }
 
 func main() {

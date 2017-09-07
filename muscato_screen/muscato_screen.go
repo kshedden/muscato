@@ -442,9 +442,10 @@ func search() error {
 	}
 
 	// Get an error if one was generated
-	e, ok := <-errc
-	if ok {
+	select {
+	case e := <-errc:
 		log.Fatal(e)
+	default:
 	}
 
 	close(hitchan)

@@ -65,6 +65,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"math"
 	"math/rand"
@@ -841,8 +842,7 @@ func makeTemp() {
 
 	// The directory where all pipes are written, needs to be in a
 	// filesystem that supports pipes..
-	pipedir = path.Join("/tmp/muscato/pipes", uid)
-	err = os.MkdirAll(pipedir, 0755)
+	pipedir, err = ioutil.TempDir("/tmp", "muscato-pipes")
 	if err != nil {
 		panic(err)
 	}
@@ -948,7 +948,7 @@ func run() {
 }
 
 func cleanPipes() {
-	logger.Printf("Removing pipes...")
+	logger.Printf("Removing pipes from %s", pipedir)
 	err := os.RemoveAll(pipedir)
 	if err != nil {
 		logger.Print("Can't remove pipes:")
@@ -959,7 +959,7 @@ func cleanPipes() {
 
 func cleanTmp() {
 	if !config.NoCleanTemp {
-		logger.Printf("Removing temporary files...")
+		logger.Printf("Removing temporary files from %s", config.TempDir)
 		err := os.RemoveAll(config.TempDir)
 		if err != nil {
 			logger.Print("Can't remove temporary files:")
@@ -1008,6 +1008,7 @@ func main() {
 	setupLog()
 
 	logger.Printf("Storing temporary files in %s", config.TempDir)
+	logger.Printf("Storing pipes in %s", pipedir)
 	logger.Printf("Storing log files in %s", config.LogDir)
 
 	run()

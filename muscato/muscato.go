@@ -957,6 +957,7 @@ func readStats() {
 	defer out.Close()
 
 	scanner := bufio.NewScanner(fid)
+	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 
 	var oldread, read []byte
 	var first bool = true

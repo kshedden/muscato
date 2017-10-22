@@ -1,0 +1,4 @@
+>read3_match0#1
+AGTTCAGCCA
++
+!!!!!!!!!!

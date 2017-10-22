@@ -841,8 +841,8 @@ func makeTemp() {
 	}
 
 	// The directory where all pipes are written, needs to be in a
-	// filesystem that supports pipes..
-	pipedir, err = ioutil.TempDir("/tmp", "muscato-pipes")
+	// filesystem that supports pipes.
+	pipedir, err = ioutil.TempDir("/tmp", "muscato-pipes-")
 	if err != nil {
 		panic(err)
 	}
@@ -932,6 +932,67 @@ func writeNonMatch() {
 	logger.Printf("writeNonMatch done")
 }
 
+// readStats calculates statistics for each read, using a results
+// datafile that is sorted by read.
+func readStats() {
+
+	fid, err := os.Open(config.ResultsFileName)
+	if err != nil {
+		panic(err)
+	}
+	defer fid.Close()
+
+	var outfile string
+	ext := path.Ext(config.ResultsFileName)
+	if ext != "" {
+		m := len(config.ResultsFileName)
+		outfile = config.ResultsFileName[0:m-len(ext)] + "_readstats" + ext
+	} else {
+		outfile = config.ResultsFileName + "_readstats"
+	}
+	out, err := os.Create(outfile)
+	if err != nil {
+		panic(err)
+	}
+	defer out.Close()
+
+	scanner := bufio.NewScanner(fid)
+
+	var oldread, read []byte
+	var first bool = true
+	var n int
+
+	for scanner.Scan() {
+		fields := bytes.Fields(scanner.Bytes())
+		read = fields[7]
+
+		if first {
+			oldread = read
+			first = false
+		}
+
+		if bytes.Compare(read, oldread) != 0 {
+			_, err := out.WriteString(fmt.Sprintf("%s,%d\n", oldread, n))
+			if err != nil {
+				panic(err)
+			}
+			oldread = []byte(string(read))
+			n = 0
+		}
+
+		n++
+	}
+
+	_, err = out.WriteString(fmt.Sprintf("%s,%d\n", read, n))
+	if err != nil {
+		panic(err)
+	}
+
+	if err := scanner.Err(); err != nil {
+		panic(err)
+	}
+}
+
 func run() {
 	prepReads()
 	perfInfo()
@@ -945,6 +1006,7 @@ func run() {
 	joinGeneNames()
 	joinReadNames()
 	writeNonMatch()
+	readStats()
 }
 
 func cleanPipes() {

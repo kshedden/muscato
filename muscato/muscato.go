@@ -135,27 +135,28 @@ func prepReads() {
 
 	logger.Printf("Starting prepReads")
 
+	wf := scipipe.NewWorkflow("pr", 4)
+
 	// Run muscato_prep_reads
-	dc := scipipe.NewProc("mpr", fmt.Sprintf("muscato_prep_reads %s > {os:mpr_out}", configFilePath))
+	dc := wf.NewProc("mpr", fmt.Sprintf("muscato_prep_reads %s > {os:mpr_out}", configFilePath))
 	dc.SetPathStatic("mpr_out", path.Join(pipedir, "pr_mpr"))
 
 	// Sort the output of muscato_prep_reads
 	c := fmt.Sprintf("sort %s %s %s {i:insort} > {os:outsort}", sortmem, sortpar, sortTmpFlag)
 	logger.Printf(c)
-	sr := scipipe.NewProc("sr", c)
+	sr := wf.NewProc("sr", c)
 	sr.SetPathStatic("outsort", path.Join(pipedir, "pr_outsort"))
 
 	// Uniqify and count duplicates
 	outname := path.Join(config.TempDir, "reads_sorted.txt.sz")
 	c = fmt.Sprintf("muscato_uniqify %s {i:inuniq} > %s", configFilePath, outname)
 	logger.Printf(c)
-	mu := scipipe.NewProc("mu", c)
+	mu := wf.NewProc("mu", c)
 
 	// Connect the network
 	sr.In("insort").Connect(dc.Out("mpr_out"))
 	mu.In("inuniq").Connect(sr.Out("outsort"))
 
-	wf := scipipe.NewWorkflow("pr")
 	wf.AddProcs(dc, sr, mu)
 	wf.SetDriver(mu)
 	wf.Run()
@@ -184,27 +185,27 @@ func sortWindows() {
 	for k := 0; k < len(config.Windows); k++ {
 
 		logger.Printf("sortWindows %d...", k)
+		wf := scipipe.NewWorkflow("sw", 4)
 
 		// Decompress matches
 		fn := path.Join(config.TempDir, fmt.Sprintf("win_%d.txt.sz", k))
-		dc := scipipe.NewProc("dc", fmt.Sprintf("sztool -d %s > {os:dx}", fn))
+		dc := wf.NewProc("dc", fmt.Sprintf("sztool -d %s > {os:dx}", fn))
 		dc.SetPathStatic("dx", path.Join(pipedir, fmt.Sprintf("sw_dc_%d", k)))
 
 		// Sort the matches
 		sc := fmt.Sprintf("sort %s %s -k1 %s {i:in} > {o:sort}", sortmem, sortpar, sortTmpFlag)
-		sm := scipipe.NewProc("sm", sc)
+		sm := wf.NewProc("sm", sc)
 		logger.Printf(sc)
 		sm.SetPathStatic("sort", path.Join(pipedir, fmt.Sprintf("sw_sort_%d", k)))
 
 		// Compress results
 		fn = strings.Replace(fn, ".txt.sz", "_sorted.txt.sz", 1)
-		rc := scipipe.NewProc("rc", fmt.Sprintf("sztool -c {i:ins} %s", fn))
+		rc := wf.NewProc("rc", fmt.Sprintf("sztool -c {i:ins} %s", fn))
 
 		// Connect the network
 		sm.In("in").Connect(dc.Out("dx"))
 		rc.In("ins").Connect(sm.Out("sort"))
 
-		wf := scipipe.NewWorkflow("sw")
 		wf.AddProcs(dc, sm, rc)
 		wf.SetDriver(rc)
 		wf.Run()
@@ -235,27 +236,27 @@ func sortBloom() {
 	for k := range config.Windows {
 
 		logger.Printf("sortBloom %d...", k)
+		wf := scipipe.NewWorkflow("sb", 4)
 
 		// Decompress matches
 		fn := path.Join(config.TempDir, fmt.Sprintf("bmatch_%d.txt.sz", k))
-		dc := scipipe.NewProc("dc", fmt.Sprintf("sztool -d %s > {os:dx}", fn))
+		dc := wf.NewProc("dc", fmt.Sprintf("sztool -d %s > {os:dx}", fn))
 		dc.SetPathStatic("dx", path.Join(pipedir, fmt.Sprintf("sb_dc_%d", k)))
 
 		// Sort the matches
 		c := fmt.Sprintf("sort %s %s -k1 %s {i:in} > {os:sort}", sortmem, sortpar, sortTmpFlag)
 		logger.Printf(c)
-		sm := scipipe.NewProc("sm", c)
+		sm := wf.NewProc("sm", c)
 		sm.SetPathStatic("sort", path.Join(pipedir, fmt.Sprintf("sb_sort_%d", k)))
 
 		// Compress results
 		fn = path.Join(config.TempDir, fmt.Sprintf("smatch_%d.txt.sz", k))
-		rc := scipipe.NewProc("rc", fmt.Sprintf("sztool -c {i:ins} %s", fn))
+		rc := wf.NewProc("rc", fmt.Sprintf("sztool -c {i:ins} %s", fn))
 
 		// Connect the network
 		sm.In("in").Connect(dc.Out("dx"))
 		rc.In("ins").Connect(sm.Out("sort"))
 
-		wf := scipipe.NewWorkflow("sb")
 		wf.AddProcs(dc, sm, rc)
 		wf.SetDriver(rc)
 		wf.Run()
@@ -501,32 +502,32 @@ func sortByGeneId() {
 func joinGeneNames() {
 
 	logger.Printf("starting joinGeneNames")
+	wf := scipipe.NewWorkflow("jgn", 4)
 
 	// Decompress matches
-	ma := scipipe.NewProc("ma", fmt.Sprintf("sztool -d %s > {os:ma}", path.Join(config.TempDir, "matches_sg.txt.sz")))
+	ma := wf.NewProc("ma", fmt.Sprintf("sztool -d %s > {os:ma}", path.Join(config.TempDir, "matches_sg.txt.sz")))
 	ma.SetPathStatic("ma", path.Join(pipedir, "jgn_ma.txt"))
 
 	// Decompress gene ids
-	gn := scipipe.NewProc("gn", fmt.Sprintf("sztool -d %s > {os:gn}", config.GeneIdFileName))
+	gn := wf.NewProc("gn", fmt.Sprintf("sztool -d %s > {os:gn}", config.GeneIdFileName))
 	gn.SetPathStatic("gn", path.Join(pipedir, "jgn_gn.txt"))
 
 	// Join genes and matches
-	jo := scipipe.NewProc("jo", "join -1 5 -2 1 -t'\t' {i:mx} {i:gx} > {os:jx}")
+	jo := wf.NewProc("jo", "join -1 5 -2 1 -t'\t' {i:mx} {i:gx} > {os:jx}")
 	jo.SetPathStatic("jx", path.Join(pipedir, "jgn_joined.txt"))
 
 	// Cut out unwanted column
-	ct := scipipe.NewProc("ct", "cut -d'\t' -f 1 --complement {i:jy} > {os:co}")
+	ct := wf.NewProc("ct", "cut -d'\t' -f 1 --complement {i:jy} > {os:co}")
 	ct.SetPathStatic("co", path.Join(pipedir, "jgn_cut.txt"))
 
 	// Compress the result
-	sz := scipipe.NewProc("sz", fmt.Sprintf("sztool -c {i:zi} %s", path.Join(config.TempDir, "matches_sn.txt.sz")))
+	sz := wf.NewProc("sz", fmt.Sprintf("sztool -c {i:zi} %s", path.Join(config.TempDir, "matches_sn.txt.sz")))
 
 	jo.In("mx").Connect(ma.Out("ma"))
 	jo.In("gx").Connect(gn.Out("gn"))
 	ct.In("jy").Connect(jo.Out("jx"))
 	sz.In("zi").Connect(ct.Out("co"))
 
-	wf := scipipe.NewWorkflow("jgn")
 	wf.AddProcs(ma, gn, jo, ct, sz)
 	wf.SetDriver(sz)
 	wf.Run()
@@ -537,6 +538,7 @@ func joinGeneNames() {
 func joinReadNames() {
 
 	logger.Printf("starting joinReadNames")
+	wf := scipipe.NewWorkflow("jrn", 4)
 
 	// The workflow hangs if the results file already exists, so
 	// remove it.
@@ -553,21 +555,21 @@ func joinReadNames() {
 	}
 
 	// Decompress matches
-	ma := scipipe.NewProc("ma", fmt.Sprintf("sztool -d %s > {os:ma}",
+	ma := wf.NewProc("ma", fmt.Sprintf("sztool -d %s > {os:ma}",
 		path.Join(config.TempDir, "matches_sn.txt.sz")))
 	ma.SetPathStatic("ma", path.Join(pipedir, "jrn_ma.txt"))
 
 	// Decompress sorted reads
-	rd := scipipe.NewProc("rd", fmt.Sprintf("sztool -d %s > {os:rd}",
+	rd := wf.NewProc("rd", fmt.Sprintf("sztool -d %s > {os:rd}",
 		path.Join(config.TempDir, "reads_sorted.txt.sz")))
 	rd.SetPathStatic("rd", path.Join(pipedir, "jrn_rd.txt"))
 
 	// Sort the matches
-	sm := scipipe.NewProc("sm", fmt.Sprintf("sort %s %s -k1 %s {i:in} > {os:sort}", sortmem, sortpar, sortTmpFlag))
+	sm := wf.NewProc("sm", fmt.Sprintf("sort %s %s -k1 %s {i:in} > {os:sort}", sortmem, sortpar, sortTmpFlag))
 	sm.SetPathStatic("sort", path.Join(pipedir, "jrn_sort.txt"))
 
 	// Join the sorted matches with the reads
-	jo := scipipe.NewProc("jo", "join -1 1 -2 1 -t'\t' {i:srx} {i:rdx} > {o:out}")
+	jo := wf.NewProc("jo", "join -1 1 -2 1 -t'\t' {i:srx} {i:rdx} > {o:out}")
 	jo.SetPathStatic("out", config.ResultsFileName)
 
 	snk := scipipe.NewSink("snk")
@@ -578,7 +580,6 @@ func joinReadNames() {
 	jo.In("rdx").Connect(rd.Out("rd"))
 	snk.Connect(jo.Out("out"))
 
-	wf := scipipe.NewWorkflow("jrn")
 	wf.AddProcs(ma, rd, sm, jo)
 	wf.SetDriver(snk)
 	wf.Run()

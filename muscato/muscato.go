@@ -502,7 +502,7 @@ func sortByGeneId() {
 func joinGeneNames() {
 
 	logger.Printf("starting joinGeneNames")
-	wf := scipipe.NewWorkflow("jgn", 4)
+	wf := scipipe.NewWorkflow("jgn", 5)
 
 	// Decompress matches
 	ma := wf.NewProc("ma", fmt.Sprintf("sztool -d %s > {os:ma}", path.Join(config.TempDir, "matches_sg.txt.sz")))
@@ -963,6 +963,23 @@ func readStats() {
 	var oldread, read []byte
 	var first bool = true
 	var n int
+	genes := make(map[string]bool)
+
+	writeout := func(read []byte) {
+		if len(genes) == 1 {
+			for g, _ := range genes {
+				_, err := out.WriteString(fmt.Sprintf("%s\t%d\t%s\n", read, n, g))
+				if err != nil {
+					panic(err)
+				}
+			}
+		} else {
+			_, err := out.WriteString(fmt.Sprintf("%s\t%d\t\n", read, n))
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
 
 	for scanner.Scan() {
 		fields := bytes.Fields(scanner.Bytes())
@@ -974,21 +991,17 @@ func readStats() {
 		}
 
 		if bytes.Compare(read, oldread) != 0 {
-			_, err := out.WriteString(fmt.Sprintf("%s,%d\n", oldread, n))
-			if err != nil {
-				panic(err)
-			}
+			writeout(oldread)
 			oldread = []byte(string(read))
 			n = 0
+			genes = make(map[string]bool)
 		}
 
 		n++
+		genes[string(fields[4])] = true
 	}
 
-	_, err = out.WriteString(fmt.Sprintf("%s,%d\n", read, n))
-	if err != nil {
-		panic(err)
-	}
+	writeout(read)
 
 	if err := scanner.Err(); err != nil {
 		panic(err)

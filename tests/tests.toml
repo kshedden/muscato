@@ -55,3 +55,11 @@ Command = "muscato"
 Opts = ["-ConfigFileName=data/muscato/02/config.json", "--NoCleanTemp"]
 Files = [["result.txt", "result_e.txt"],
          ["result.nonmatch.txt.fastq", "result.nonmatch_e.txt"]]
+
+[[Test]]
+Name = "muscato 3"
+Base = "data/muscato/03"
+Command = "muscato"
+Opts = ["-ConfigFileName=data/muscato/03/config.json", "--NoCleanTemp"]
+Files = [["result.txt", "result_e.txt"],
+         ["result.nonmatch.txt.fastq", "result.nonmatch_e.txt"]]

@@ -3,12 +3,17 @@
 # directory, you can use make to recompile and install all the
 # components of Muscato.
 
-all: muscato muscato_screen muscato_confirm muscato_prep_reads muscato_prep_targets muscato_window_reads muscato_uniqify
+all: muscato muscato_screen muscato_confirm muscato_prep_reads muscato_prep_targets\
+	muscato_window_reads muscato_uniqify muscato_genestats
 
-.PHONY: muscato muscato_screen muscato_confirm muscato_prep_reads muscato_prep_targets muscato_window_reads muscato_uniqify
+.PHONY: muscato muscato_screen muscato_confirm muscato_prep_reads muscato_prep_targets\
+	muscato_window_reads muscato_uniqify muscato_genestats
 
 muscato:
 	go install ./muscato
+
+muscato_genestats:
+	go install ./muscato_genestats
 
 muscato_screen:
 	go install ./muscato_screen

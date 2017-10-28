@@ -68,20 +68,17 @@ import (
 	"io/ioutil"
 	"log"
 	"math"
-	"math/rand"
 	"os"
 	"os/exec"
 	"path"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/golang/snappy"
 	"github.com/google/uuid"
 	"github.com/kshedden/muscato/utils"
 	"github.com/scipipe/scipipe"
 	"github.com/willf/bloom"
-	"golang.org/x/sys/unix"
 )
 
 var (
@@ -99,36 +96,36 @@ var (
 	sortpar string
 )
 
-func pipename() string {
-	f := fmt.Sprintf("%09d", rand.Int63()%1e9)
-	return path.Join(pipedir, f)
-}
+// geneStats
+func geneStats() {
 
-// pipefromsz creates a fifo and starts decompressing the given snappy
-// file into it.
-func pipefromsz(fname string) string {
+	wf := scipipe.NewWorkflow("gs", 4)
 
-	rand.Seed(int64(time.Now().UnixNano() + int64(os.Getpid())))
+	c := fmt.Sprintf("sort %s %s %s %s -k 5 > {os:outsort}", sortmem, sortpar, sortTmpFlag, config.ResultsFileName)
+	logger.Printf(c)
+	gsrt := wf.NewProc("gsrt", c)
+	gsrt.SetPathStatic("outsort", path.Join(pipedir, "gs_outsort"))
 
-	for k := 0; k < 10; k++ {
-		name := pipename()
-		err := unix.Mkfifo(name, 0755)
-		if err == nil {
-			go func() {
-				cmd := exec.Command("sztool", "-d", fname, name)
-				cmd.Env = os.Environ()
-				cmd.Stderr = os.Stderr
-				err := cmd.Run()
-				if err != nil {
-					panic(err)
-				}
-			}()
-			return name
-		}
-		print(fmt.Sprintf("%v\n", err))
+	var outfile string
+	ext := path.Ext(config.ResultsFileName)
+	if ext != "" {
+		m := len(config.ResultsFileName)
+		outfile = config.ResultsFileName[0:m-len(ext)] + "_genestats" + ext
+	} else {
+		outfile = config.ResultsFileName + "_genestats"
 	}
+	os.Remove(outfile)
 
-	panic("unable to create pipe")
+	gsta := wf.NewProc("gst", "muscato_genestats {i:insort} > {o:out}")
+	gsta.SetPathStatic("out", outfile)
+	gsta.In("insort").Connect(gsrt.Out("outsort"))
+
+	snk := scipipe.NewSink("snk")
+	snk.Connect(gsta.Out("out"))
+
+	wf.AddProcs(gsrt, gsta)
+	wf.SetDriver(snk)
+	wf.Run()
 }
 
 func prepReads() {
@@ -1022,6 +1019,7 @@ func run() {
 	joinReadNames()
 	writeNonMatch()
 	readStats()
+	geneStats()
 }
 
 func cleanPipes() {

@@ -1,0 +1,2 @@
+
+{"ReadFileName": "data/muscato/03/reads.fastq", "GeneFileName": "data/muscato/03/genes.txt.sz", "GeneIdFileName": "data/muscato/03/genes_ids.txt.sz", "ResultsFileName": "data/muscato/03/result.txt", "Windows": [0,5], "WindowWidth": 4, "BloomSize": 4000000, "NumHash": 20, "PMatch": 1, "MinDinuc": 1, "MinReadLength": 0, "MaxMatches": 1000, "MaxConfirmProcs": 5, "MaxReadLength": 300, "MatchMode": "best", "MMTol": 1}

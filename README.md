@@ -60,7 +60,8 @@ The `muscato_prep_targets` script accepts a `-rev` flag in which
 reverse complement target sequences are added to the database along
 with the original sequences.
 
-Now you can run muscato.  A basic invocation is:
+After building the target datafile, you can run muscato.  A basic
+invocation is:
 
 ```
 muscato --ReadFileName=reads.fastq --GeneFileName=genes.fasta.sz --GeneIdFileName=genes_ids.sz\
@@ -68,8 +69,7 @@ muscato --ReadFileName=reads.fastq --GeneFileName=genes.fasta.sz --GeneIdFileNam
 ```
 
 Note that the target files `genes.fasta.sz` and `genes_ids.sz` were
-produced by the `muscato_prep_targets` script, to be run as shown
-above.
+produced by the `muscato_prep_targets` script, run as shown above.
 
 Many other command-line flags are available, run `muscato --help` for
 more information.  The output of muscato --help is [here](http://github.com/kshedden/muscato/blob/master/help.md).
@@ -122,9 +122,10 @@ tests are written to the file `test.log`.
 
 __Dependencies__
 
-Muscato has the following dependencies, which should be automatically
-installed by `go get` when installing muscato, as described above
-(sztool must be installed directly).
+Muscato has the following dependencies.  The sztool package must me
+installed manually with go get, as shown above.  All other
+dependencies should be automatically installed by `go get` when
+installing muscato.
 
 [github.com/kshedden/sztool](http://github.com/kshedden/sztool)
 

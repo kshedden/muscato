@@ -1,3 +1,15 @@
+>read3#1
+AGTTCAGCCA
++
+!!!!!!!!!!
+>read2#1
+CGGCTTACGG
++
+!!!!!!!!!!
+>read5#1
+CTACTTAGGC
++
+!!!!!!!!!!
 >read4#1
 GTACGCATCC
 +

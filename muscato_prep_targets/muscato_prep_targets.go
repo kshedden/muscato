@@ -89,7 +89,14 @@ func processText(scanner *bufio.Scanner, idout, seqout io.Writer, rev bool) {
 		if len(line) == 0 {
 			break
 		}
+
 		toks := bytes.Split(line, []byte("\t"))
+		if len(toks) != 2 {
+			logger.Printf("Text format gene file should have two tab-delimited tokens per row.  Line %d has %d tokens.\n",
+				lnum+1, len(toks))
+			os.Exit(0)
+		}
+
 		nam := toks[0]
 		seq := toks[1]
 

@@ -963,18 +963,14 @@ func readStats() {
 	genes := make(map[string]bool)
 
 	writeout := func(read []byte) {
-		if len(genes) == 1 {
-			for g, _ := range genes {
-				_, err := out.WriteString(fmt.Sprintf("%s\t%d\t%s\n", read, n, g))
-				if err != nil {
-					panic(err)
-				}
-			}
-		} else {
-			_, err := out.WriteString(fmt.Sprintf("%s\t%d\t\n", read, n))
-			if err != nil {
-				panic(err)
-			}
+		var buf bytes.Buffer
+		for g, _ := range genes {
+			buf.Write([]byte(g))
+			buf.Write([]byte(";"))
+		}
+		_, err := out.WriteString(fmt.Sprintf("%s\t%s\n", read, buf.String()))
+		if err != nil {
+			panic(err)
 		}
 	}
 

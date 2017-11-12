@@ -33,12 +33,24 @@ Files = [["genes_ids.txt.sz", "genes_ids_e.txt"],
          ["genes.txt.sz", "genes_e.txt"]]
 
 [[Test]]
+Name = "muscato 0 prep"
+Base = "data/muscato/00"
+Command = "muscato_prep_targets"
+Args = ["genes.txt"]
+
+[[Test]]
 Name = "muscato 0"
 Base = "data/muscato/00"
 Command = "muscato"
 Opts = ["-ConfigFileName=data/muscato/00/config.json", "--NoCleanTemp"]
 Files = [["result.txt", "result_e.txt"],
          ["result.nonmatch.txt.fastq", "result.nonmatch_e.txt"]]
+
+[[Test]]
+Name = "muscato 1 prep"
+Base = "data/muscato/01"
+Command = "muscato_prep_targets"
+Args = ["genes.txt"]
 
 [[Test]]
 Name = "muscato 1"
@@ -49,6 +61,12 @@ Files = [["result.txt", "result_e.txt"],
          ["result.nonmatch.txt.fastq", "result.nonmatch_e.txt"]]
 
 [[Test]]
+Name = "muscato 2 prep"
+Base = "data/muscato/02"
+Command = "muscato_prep_targets"
+Args = ["genes.txt"]
+
+[[Test]]
 Name = "muscato 2"
 Base = "data/muscato/02"
 Command = "muscato"
@@ -57,9 +75,30 @@ Files = [["result.txt", "result_e.txt"],
          ["result.nonmatch.txt.fastq", "result.nonmatch_e.txt"]]
 
 [[Test]]
+Name = "muscato 3 prep"
+Base = "data/muscato/03"
+Command = "muscato_prep_targets"
+Args = ["genes.txt"]
+
+[[Test]]
 Name = "muscato 3"
 Base = "data/muscato/03"
 Command = "muscato"
 Opts = ["-ConfigFileName=data/muscato/03/config.json", "--NoCleanTemp"]
+Files = [["result.txt", "result_e.txt"],
+         ["result.nonmatch.txt.fastq", "result.nonmatch_e.txt"]]
+
+[[Test]]
+Name = "muscato 4 prep"
+Base = "data/muscato/04"
+Command = "muscato_prep_targets"
+Opts = ["-rev"]
+Args = ["genes.txt"]
+
+[[Test]]
+Name = "muscato 4"
+Base = "data/muscato/04"
+Command = "muscato"
+Opts = ["-ConfigFileName=data/muscato/04/config.json", "--NoCleanTemp"]
 Files = [["result.txt", "result_e.txt"],
          ["result.nonmatch.txt.fastq", "result.nonmatch_e.txt"]]

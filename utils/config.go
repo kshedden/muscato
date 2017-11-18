@@ -94,7 +94,7 @@ type Config struct {
 	NoCleanTemp bool
 
 	// If true, generate CPU profile data.
-	CpuProfile bool
+	CPUProfile bool
 }
 
 func ReadConfig(filename string) *Config {

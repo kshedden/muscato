@@ -506,7 +506,7 @@ func main() {
 		tmpdir = config.TempDir
 	}
 
-	if config.CpuProfile {
+	if config.CPUProfile {
 		f, err := os.Create("muscato_screen_cpu.prof")
 		if err != nil {
 			panic(err)

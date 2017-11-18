@@ -169,7 +169,9 @@ func windowReads() {
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
 	if err != nil {
-		panic(err)
+		msg := "Error running muscato_window_reads, see log files for details.\n"
+		os.Stderr.WriteString(msg)
+		log.Fatal(err)
 	}
 
 	logger.Printf("windowReads done")
@@ -221,7 +223,9 @@ func screen() {
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
 	if err != nil {
-		panic(err)
+		msg := "Error running muscato_screen, see log files for details.\n"
+		os.Stderr.WriteString(msg)
+		log.Fatal(err)
 	}
 	logger.Printf("Screening done")
 }
@@ -286,7 +290,9 @@ func confirm() {
 			cmd.Stderr = os.Stderr
 			err := cmd.Start()
 			if err != nil {
-				panic(err)
+				msg := "Error running muscato_confirm, see log files for details.\n"
+				os.Stderr.WriteString(msg)
+				log.Fatal(err)
 			}
 			cmds = append(cmds, cmd)
 		}
@@ -294,7 +300,9 @@ func confirm() {
 		for _, cmd := range cmds {
 			err := cmd.Wait()
 			if err != nil {
-				panic(err)
+				msg := "Error running muscato_confirm, see log files for details.\n"
+				os.Stderr.WriteString(msg)
+				log.Fatal(err)
 			}
 		}
 		fp += nproc
@@ -307,7 +315,7 @@ func confirm() {
 // broken into fields (bfr).  Every line represents a candidate match.
 // The matches with at most mmtol more matches than the best match are
 // written to the io writer (wtr).  ibuf is provided workspace.
-func writebest(lines []string, bfr [][]string, wtr io.Writer, ibuf []int, mmtol int) []int {
+func writebest(lines []string, bfr [][]string, wtr io.Writer, ibuf []int, mmtol int) ([]int, error) {
 
 	// Find the best fit, determine the number of mismatches for each sequence.
 	ibuf = ibuf[0:0]
@@ -315,7 +323,7 @@ func writebest(lines []string, bfr [][]string, wtr io.Writer, ibuf []int, mmtol 
 	for _, x := range bfr {
 		y, err := strconv.Atoi(x[3]) // 3 is position of nmiss
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 		if best == -1 || y < best {
 			best = y
@@ -328,16 +336,16 @@ func writebest(lines []string, bfr [][]string, wtr io.Writer, ibuf []int, mmtol 
 		if ibuf[i] <= best+mmtol {
 			_, err := wtr.Write([]byte(x))
 			if err != nil {
-				panic(err)
+				return nil, err
 			}
 			_, err = wtr.Write([]byte("\n"))
 			if err != nil {
-				panic(err)
+				return nil, err
 			}
 		}
 	}
 
-	return ibuf
+	return ibuf, nil
 }
 
 func combineWindows() {
@@ -356,7 +364,9 @@ func combineWindows() {
 	outname := path.Join(config.TempDir, "matches.txt.sz")
 	out, err := os.Create(outname)
 	if err != nil {
-		panic(err)
+		msg := "Error in combineWindows, see log files for details.\n"
+		os.Stderr.WriteString(msg)
+		log.Fatal(err)
 	}
 	wtr := snappy.NewBufferedWriter(out)
 
@@ -371,20 +381,26 @@ func combineWindows() {
 		cmds = append(cmds, c)
 		p, err := c.StdoutPipe()
 		if err != nil {
-			panic(err)
+			msg := "Error in combineWindows, see log files for details.\n"
+			os.Stderr.WriteString(msg)
+			log.Fatal(err)
 		}
 		fd = append(fd, p)
 	}
 	c0.Stdin = io.MultiReader(fd...)
 	da, err := c0.StdoutPipe()
 	if err != nil {
-		panic(err)
+		msg := "Error in combineWindows, see log files for details.\n"
+		os.Stderr.WriteString(msg)
+		log.Fatal(err)
 	}
 
 	for _, c := range cmds {
 		err := c.Start()
 		if err != nil {
-			panic(err)
+			msg := "Error in combineWindows, see log files for details.\n"
+			os.Stderr.WriteString(msg)
+			log.Fatal(err)
 		}
 	}
 
@@ -413,7 +429,12 @@ func combineWindows() {
 			}
 
 			// Process a block
-			ibuf = writebest(lines, fields, wtr, ibuf, mmtol)
+			ibuf, err = writebest(lines, fields, wtr, ibuf, mmtol)
+			if err != nil {
+				msg := "Error in combineWindows, see log file for details.\n"
+				os.Stderr.WriteString(msg)
+				log.Fatal(err)
+			}
 			lines = lines[0:0]
 			lines = append(lines, line)
 			fields = fields[0:0]
@@ -423,7 +444,12 @@ func combineWindows() {
 
 		if err := scanner.Err(); err == nil {
 			// Process the final block if possible
-			writebest(lines, fields, wtr, ibuf, mmtol)
+			_, err := writebest(lines, fields, wtr, ibuf, mmtol)
+			if err != nil {
+				msg := "Error in combineWindows, see log file for details.\n"
+				os.Stderr.WriteString(msg)
+				log.Fatal(err)
+			}
 		} else {
 			// Should never get here, but just in case log
 			// the error but don't try to process the
@@ -438,7 +464,9 @@ func combineWindows() {
 	for _, c := range cmds {
 		err := c.Wait()
 		if err != nil {
-			panic(err)
+			msg := "Error in combineWindows, see log file for details.\n"
+			os.Stderr.WriteString(msg)
+			log.Fatal(err)
 		}
 	}
 	sem <- true
@@ -466,14 +494,18 @@ func sortByGeneId() {
 	var err error
 	cmd2.Stdin, err = cmd1.StdoutPipe()
 	if err != nil {
-		panic(err)
+		msg := "Error in sortByGeneId, see log files for details.\n"
+		os.Stderr.WriteString(msg)
+		log.Fatal(err)
 	}
 	cmd3 := exec.Command("sztool", "-c", "-", outname)
 	cmd3.Env = os.Environ()
 	cmd3.Stderr = os.Stderr
 	cmd3.Stdin, err = cmd2.StdoutPipe()
 	if err != nil {
-		panic(err)
+		msg := "Error in sortByGeneId, see log files for details.\n"
+		os.Stderr.WriteString(msg)
+		log.Fatal(err)
 	}
 
 	// Order matters
@@ -481,7 +513,9 @@ func sortByGeneId() {
 	for _, c := range cmds {
 		err := c.Start()
 		if err != nil {
-			panic(err)
+			msg := "Error in sortByGeneId, see log files for details.\n"
+			os.Stderr.WriteString(msg)
+			log.Fatal(err)
 		}
 	}
 
@@ -489,7 +523,9 @@ func sortByGeneId() {
 	for _, c := range cmds {
 		err := c.Wait()
 		if err != nil {
-			panic(err)
+			msg := "Error in sortByGeneId, see log files for details.\n"
+			os.Stderr.WriteString(msg)
+			log.Fatal(err)
 		}
 	}
 
@@ -543,12 +579,16 @@ func joinReadNames() {
 	if err == nil {
 		err := os.Remove(config.ResultsFileName)
 		if err != nil {
-			panic(err)
+			msg := "Error in joinReadNames, see log files for details.\n"
+			os.Stderr.WriteString(msg)
+			log.Fatal(err)
 		}
 	} else if os.IsNotExist(err) {
 		// do nothing
 	} else {
-		panic(err)
+		msg := "Error in joinReadNames, see log files for details.\n"
+		os.Stderr.WriteString(msg)
+		log.Fatal(err)
 	}
 
 	// Decompress matches
@@ -588,7 +628,9 @@ func setupLog() {
 	logname := path.Join(config.LogDir, "muscato.log")
 	fid, err := os.Create(logname)
 	if err != nil {
-		panic(err)
+		msg := fmt.Sprintf("Error creating %s, see log files for details.\n", logname)
+		os.Stderr.WriteString(msg)
+		log.Fatal(err)
 	}
 	logger = log.New(fid, "", log.Ltime)
 }
@@ -599,13 +641,17 @@ func saveConfig(config *utils.Config) {
 
 	fid, err := os.Create(path.Join(config.LogDir, "config.json"))
 	if err != nil {
-		panic(err)
+		msg := "Error in saveConfig, see log files for details."
+		os.Stderr.WriteString(msg)
+		log.Fatal(err)
 	}
 	defer fid.Close()
 	enc := json.NewEncoder(fid)
 	err = enc.Encode(config)
 	if err != nil {
-		panic(err)
+		msg := "Error in saveConfig, see log files for details."
+		os.Stderr.WriteString(msg)
+		log.Fatal(err)
 	}
 	configFilePath = path.Join(config.LogDir, "config.json")
 }
@@ -715,13 +761,15 @@ func handleArgs() {
 		sortTmpFlag = path.Join(config.TempDir, "sort")
 		err := os.MkdirAll(sortTmpFlag, 0755)
 		if err != nil {
-			panic(err)
+			msg := "Error in handleArgs, see log files for details.\n"
+			os.Stderr.WriteString(msg)
+			log.Fatal(err)
 		}
 		sortTmpFlag = "--temporary-directory=" + sortTmpFlag
 	}
 
 	if config.ResultsFileName == "" {
-		print("ResultsFileName must be specified.  Run 'muscato --help' for more information.\n\n")
+		os.Stderr.WriteString("ResultsFileName must be specified.  Run 'muscato --help' for more information.\n\n")
 		os.Exit(1)
 	}
 
@@ -731,7 +779,9 @@ func handleArgs() {
 		for _, x := range toks {
 			y, err := strconv.Atoi(x)
 			if err != nil {
-				panic(err)
+				msg := "Error in handleArgs, see log files for details.\n"
+				os.Stderr.WriteString(msg)
+				log.Fatal(err)
 			}
 			itoks = append(itoks, y)
 		}
@@ -803,17 +853,23 @@ func checkArgs() {
 func setupEnvs() {
 	err := os.Setenv("LC_ALL", "C")
 	if err != nil {
-		panic(err)
+		msg := "Error in setupEnvs, see log files for details.\n"
+		os.Stderr.WriteString(msg)
+		log.Fatal(err)
 	}
 	home := os.Getenv("HOME")
 	gopath := path.Join(home, "go")
 	err = os.Setenv("GOPATH", gopath)
 	if err != nil {
-		panic(err)
+		msg := "Error in setupEnvs, see log files for details.\n"
+		os.Stderr.WriteString(msg)
+		log.Fatal(err)
 	}
 	err = os.Setenv("PATH", os.Getenv("PATH")+":"+home+"/go/bin")
 	if err != nil {
-		panic(err)
+		msg := "Error in setupEnvs, see log files for details.\n"
+		os.Stderr.WriteString(msg)
+		log.Fatal(err)
 	}
 }
 
@@ -823,7 +879,9 @@ func makeTemp() {
 	// temp files, log files, etc. are stored in directories defined by this unique id.
 	xuid, err := uuid.NewUUID()
 	if err != nil {
-		panic(err)
+		msg := "Error in makeTemp, see log files for details.\n"
+		os.Stderr.WriteString(msg)
+		log.Fatal(err)
 	}
 	uid := xuid.String()
 
@@ -835,14 +893,24 @@ func makeTemp() {
 	}
 	err = os.MkdirAll(config.TempDir, 0755)
 	if err != nil {
-		panic(err)
+		if os.IsNotExist(err) {
+			msg := fmt.Sprintf("Directory %s does not exist and cannot be created.", config.TempDir)
+			os.Stderr.WriteString(msg)
+			os.Exit(1)
+		}
+		log.Fatal(err)
 	}
 
 	// The directory where all pipes are written, needs to be in a
 	// filesystem that supports pipes.
 	pipedir, err = ioutil.TempDir("/tmp", "muscato-pipes-")
 	if err != nil {
-		panic(err)
+		if os.IsNotExist(err) {
+			msg := "Cannot create temporary directory in /tmp for pipes."
+			os.Stderr.WriteString(msg)
+			os.Exit(1)
+		}
+		log.Fatal(err)
 	}
 
 	// Setup the directory for logging.
@@ -852,7 +920,12 @@ func makeTemp() {
 	config.LogDir = path.Join(config.LogDir, uid)
 	err = os.MkdirAll(config.LogDir, 0755)
 	if err != nil {
-		panic(err)
+		if os.IsNotExist(err) {
+			msg := fmt.Sprintf("Cannot create directory %s for log files.", config.LogDir)
+			os.Stderr.WriteString(msg)
+			os.Exit(1)
+		}
+		log.Fatal(err)
 	}
 
 }
@@ -864,7 +937,12 @@ func writeNonMatch() {
 	// Reader for the match file
 	inf, err := os.Open(config.ResultsFileName)
 	if err != nil {
-		panic(err)
+		if os.IsNotExist(err) {
+			msg := fmt.Sprintf("Cannot open file %s.", config.ResultsFileName)
+			os.Stderr.WriteString(msg)
+			os.Exit(1)
+		}
+		log.Fatal(err)
 	}
 	defer inf.Close()
 
@@ -890,7 +968,12 @@ func writeNonMatch() {
 	outname := path.Join(a, strings.Join(c, "."))
 	out, err := os.Create(outname)
 	if err != nil {
-		panic(err)
+		msg := fmt.Sprintf("Cannot create file %s.", outname)
+		if os.IsNotExist(err) {
+			os.Stderr.WriteString(msg)
+			os.Exit(1)
+		}
+		log.Fatal(msg)
 	}
 	defer out.Close()
 	wtr := bufio.NewWriter(out)
@@ -936,7 +1019,11 @@ func readStats() {
 
 	fid, err := os.Open(config.ResultsFileName)
 	if err != nil {
-		panic(err)
+		if os.IsNotExist(err) {
+			msg := fmt.Sprintf("Cannot open results file %s, see log files for details.\n", config.ResultsFileName)
+			os.Stderr.WriteString(msg)
+		}
+		log.Fatal(err)
 	}
 	defer fid.Close()
 
@@ -950,7 +1037,9 @@ func readStats() {
 	}
 	out, err := os.Create(outfile)
 	if err != nil {
-		panic(err)
+		msg := fmt.Sprintf("Cannot create %s, see log files for details.\n", outfile)
+		os.Stderr.WriteString(msg)
+		log.Fatal(err)
 	}
 	defer out.Close()
 
@@ -962,7 +1051,7 @@ func readStats() {
 	var n int
 	genes := make(map[string]bool)
 
-	writeout := func(read []byte) {
+	writeout := func(read []byte) error {
 		var buf bytes.Buffer
 		for g, _ := range genes {
 			buf.Write([]byte(g))
@@ -970,8 +1059,9 @@ func readStats() {
 		}
 		_, err := out.WriteString(fmt.Sprintf("%s\t%s\n", read, buf.String()))
 		if err != nil {
-			panic(err)
+			return err
 		}
+		return nil
 	}
 
 	for scanner.Scan() {
@@ -984,7 +1074,11 @@ func readStats() {
 		}
 
 		if bytes.Compare(read, oldread) != 0 {
-			writeout(oldread)
+			err := writeout(oldread)
+			if err != nil {
+				os.Stderr.WriteString("Error in readStats, see log files for details.\n")
+				log.Fatal(err)
+			}
 			oldread = []byte(string(read))
 			n = 0
 			genes = make(map[string]bool)
@@ -994,10 +1088,15 @@ func readStats() {
 		genes[string(fields[4])] = true
 	}
 
-	writeout(read)
+	err = writeout(read)
+	if err != nil {
+		os.Stderr.WriteString("Error in readStats, see log files for details.\n")
+		log.Fatal(err)
+	}
 
 	if err := scanner.Err(); err != nil {
-		panic(err)
+		os.Stderr.WriteString("Error in readStats, see log files for details.\n")
+		log.Fatal(err)
 	}
 }
 
@@ -1052,12 +1151,16 @@ func perfInfo() {
 
 	fid, err := os.Open(path.Join(config.LogDir, "seqinfo.json"))
 	if err != nil {
+		msg := "Error in perfInfo, see log files for details.\n"
+		os.Stderr.WriteString(msg)
 		log.Fatal(err)
 	}
 	dec := json.NewDecoder(fid)
 	err = dec.Decode(&inf)
 	if err != nil {
-		panic(err)
+		msg := "Error in perfInfo, see log files for details.\n"
+		os.Stderr.WriteString(msg)
+		log.Fatal(err)
 	}
 
 	// Fill rate of the k-mer set inclusion function.

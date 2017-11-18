@@ -51,8 +51,8 @@ import (
 )
 
 const (
-	// Number of goroutines, should probably scale with the number
-	// of available cores.
+	// Number of goroutines, around 5-10x the typical number of
+	// cores seems to work well.
 	concurrency int = 200
 )
 

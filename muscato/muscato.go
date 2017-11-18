@@ -139,7 +139,7 @@ func prepReads() {
 	dc.SetPathStatic("mpr_out", path.Join(pipedir, "pr_mpr"))
 
 	// Sort the output of muscato_prep_reads
-	c := fmt.Sprintf("sort %s %s %s {i:insort} > {os:outsort}", sortmem, sortpar, sortTmpFlag)
+	c := fmt.Sprintf("sort -S 80%% %s %s {i:insort} > {os:outsort}", sortpar, sortTmpFlag)
 	logger.Printf(c)
 	sr := wf.NewProc("sr", c)
 	sr.SetPathStatic("outsort", path.Join(pipedir, "pr_outsort"))

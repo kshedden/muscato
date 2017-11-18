@@ -58,12 +58,13 @@ func main() {
 
 	wtr := snappy.NewWriter(os.Stdout)
 
+	// Try to read one line to prime the pipeline.
 	if !scanner.Scan() {
 		// Can't read even one line
 		if err := scanner.Err(); err != nil {
 			log.Fatal(err)
 		}
-		log.Fatal(fmt.Errorf("%s: no input", os.Args[0]))
+		log.Fatal(fmt.Errorf("%s: no input from %s", os.Args[0], os.Args[2]))
 	}
 
 	// Current read sequence

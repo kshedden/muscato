@@ -687,6 +687,7 @@ func handleArgs() {
 	NoCleanTemp := flag.Bool("NoCleanTemp", false, "Do not delete temporary files from TempDir")
 	SortPar := flag.Int("SortPar", 8, "Number of parallel sort processes")
 	SortTemp := flag.String("SortTemp", "", "Directory to use for sort temp files")
+	CpuProfile := flag.Bool("CpuProfile", false, "Capture CPU profile data")
 
 	flag.Parse()
 
@@ -746,6 +747,9 @@ func handleArgs() {
 	}
 	if *NoCleanTemp {
 		config.NoCleanTemp = true
+	}
+	if *CpuProfile {
+		config.CpuProfile = true
 	}
 
 	if *SortPar != 0 {

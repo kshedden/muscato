@@ -39,6 +39,7 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"runtime/pprof"
 	"strings"
 	"sync"
 
@@ -503,6 +504,16 @@ func main() {
 		tmpdir = os.Args[2]
 	} else {
 		tmpdir = config.TempDir
+	}
+
+	if config.CpuProfile {
+		f, err := os.Create("muscato_screen_cpu.prof")
+		if err != nil {
+			panic(err)
+		}
+		defer f.Close()
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
 	}
 
 	bufsize = config.MaxReadLength + 50

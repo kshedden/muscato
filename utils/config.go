@@ -81,9 +81,6 @@ type Config struct {
 	// mismatched values.
 	MatchMode string
 
-	// The memory to use for sorting.
-	SortMem int
-
 	// The number of parallel processes to use for sorting.
 	SortPar int
 
@@ -95,6 +92,9 @@ type Config struct {
 	// completion.  If false, which is the default, the temporary
 	// files are removed.
 	NoCleanTemp bool
+
+	// If true, generate CPU profile data.
+	CpuProfile bool
 }
 
 func ReadConfig(filename string) *Config {

@@ -56,7 +56,8 @@ func main() {
 	buf := make([]byte, 1024*1024)
 	scanner.Buffer(buf, 1024*1024)
 
-	wtr := snappy.NewWriter(os.Stdout)
+	wtr := snappy.NewBufferedWriter(os.Stdout)
+	defer wtr.Close()
 
 	// Try to read one line to prime the pipeline.
 	if !scanner.Scan() {

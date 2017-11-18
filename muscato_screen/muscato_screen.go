@@ -418,7 +418,7 @@ func search() error {
 	for ; scanner.Scan(); i++ {
 
 		if i%1000000 == 0 {
-			logger.Printf("%d\n", i)
+			logger.Printf("%dM\n", i/1000000)
 		}
 
 		line := scanner.Text() // need a copy here

@@ -32,8 +32,6 @@ Usage of muscato:
     	Sequencing read file (fastq format)
   -ResultsFileName string
     	File name for results
-  -SortMem int
-    	Memory to use when sorting (in GB) (default 2)
   -SortPar int
     	Number of parallel sort processes (default 8)
   -SortTemp string

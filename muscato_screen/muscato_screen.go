@@ -52,7 +52,7 @@ import (
 const (
 	// Number of goroutines, should probably scale with the number
 	// of available cores.
-	concurrency int = 100
+	concurrency int = 200
 )
 
 var (
@@ -145,7 +145,10 @@ func buildBloom() error {
 				continue
 			}
 
-			// Update the Bloom filter for this sequence
+			// Update the Bloom filter for this sequence.
+			// This could probably be made concurrent, but
+			// there may be too much contention for a big
+			// payoff.
 			for _, ha := range hashes {
 				ha.Reset()
 				_, err = ha.Write(seqw)
@@ -406,7 +409,7 @@ func search() error {
 	sbuf := make([]byte, 1024*1024)
 	scanner.Buffer(sbuf, 1024*1024)
 
-	hitchan = make(chan rec)
+	hitchan = make(chan rec, 10000)
 	limit = make(chan bool, concurrency)
 	errc := make(chan error, concurrency)
 

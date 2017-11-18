@@ -92,7 +92,6 @@ var (
 	// Flag for setting the tmp file location for sorting.
 	sortTmpFlag string
 
-	sortmem string
 	sortpar string
 )
 
@@ -373,7 +372,9 @@ func combineWindows() {
 		os.Stderr.WriteString(msg)
 		log.Fatal(err)
 	}
+	defer out.Close()
 	wtr := snappy.NewBufferedWriter(out)
+	defer wtr.Close()
 
 	// TODO: Add Bloom filter here to screen out duplicates
 	var fd []io.Reader
@@ -475,9 +476,6 @@ func combineWindows() {
 		}
 	}
 	sem <- true
-
-	wtr.Close()
-	out.Close()
 
 	logger.Print("combineWindows done")
 }
@@ -688,7 +686,6 @@ func handleArgs() {
 	MatchMode := flag.String("MatchMode", "", "'first' or 'best' (retain first/best 'MaxMatches' matches meeting criteria)")
 	NoCleanTemp := flag.Bool("NoCleanTemp", false, "Do not delete temporary files from TempDir")
 	SortPar := flag.Int("SortPar", 8, "Number of parallel sort processes")
-	SortMem := flag.Int("SortMem", 2, "Memory to use when sorting (in GB)")
 	SortTemp := flag.String("SortTemp", "", "Directory to use for sort temp files")
 
 	flag.Parse()
@@ -750,11 +747,6 @@ func handleArgs() {
 	if *NoCleanTemp {
 		config.NoCleanTemp = true
 	}
-
-	if *SortMem != 0 {
-		config.SortMem = *SortMem
-	}
-	sortmem = fmt.Sprintf("-S %dG", config.SortMem)
 
 	if *SortPar != 0 {
 		config.SortPar = *SortPar

@@ -101,8 +101,8 @@ func geneStats() {
 
 	wf := scipipe.NewWorkflow("gs", 4)
 
-	c := fmt.Sprintf("sort %s %s %s %s -k 5 > {os:outsort}", sortmem, sortpar, sortTmpFlag, config.ResultsFileName)
-	logger.Printf(c)
+	c := fmt.Sprintf("sort -S 80%% %s %s %s -k 5 > {os:outsort}", sortpar, sortTmpFlag, config.ResultsFileName)
+	logger.Print(c)
 	gsrt := wf.NewProc("gsrt", c)
 	gsrt.SetPathStatic("outsort", path.Join(pipedir, "gs_outsort"))
 
@@ -130,7 +130,7 @@ func geneStats() {
 
 func prepReads() {
 
-	logger.Printf("Starting prepReads")
+	logger.Print("Starting prepReads")
 
 	wf := scipipe.NewWorkflow("pr", 4)
 
@@ -140,14 +140,14 @@ func prepReads() {
 
 	// Sort the output of muscato_prep_reads
 	c := fmt.Sprintf("sort -S 80%% %s %s {i:insort} > {os:outsort}", sortpar, sortTmpFlag)
-	logger.Printf(c)
+	logger.Print(c)
 	sr := wf.NewProc("sr", c)
 	sr.SetPathStatic("outsort", path.Join(pipedir, "pr_outsort"))
 
 	// Uniqify and count duplicates
 	outname := path.Join(config.TempDir, "reads_sorted.txt.sz")
 	c = fmt.Sprintf("muscato_uniqify %s {i:inuniq} > %s", configFilePath, outname)
-	logger.Printf(c)
+	logger.Print(c)
 	mu := wf.NewProc("mu", c)
 
 	// Connect the network
@@ -158,11 +158,11 @@ func prepReads() {
 	wf.SetDriver(mu)
 	wf.Run()
 
-	logger.Printf("prepReads done")
+	logger.Print("prepReads done")
 }
 
 func windowReads() {
-	logger.Printf("starting windowReads")
+	logger.Print("starting windowReads")
 	logger.Printf("Running command: 'muscato_window_reads %s'\n", configFilePath)
 	cmd := exec.Command("muscato_window_reads", configFilePath)
 	cmd.Env = os.Environ()
@@ -174,12 +174,12 @@ func windowReads() {
 		log.Fatal(err)
 	}
 
-	logger.Printf("windowReads done")
+	logger.Print("windowReads done")
 }
 
 func sortWindows() {
 
-	logger.Printf("starting sortWindows")
+	logger.Print("starting sortWindows")
 
 	for k := 0; k < len(config.Windows); k++ {
 
@@ -194,7 +194,7 @@ func sortWindows() {
 		// Sort the matches
 		sc := fmt.Sprintf("sort -S 80%% %s -k1 %s {i:in} > {o:sort}", sortpar, sortTmpFlag)
 		sm := wf.NewProc("sm", sc)
-		logger.Printf(sc)
+		logger.Print(sc)
 		sm.SetPathStatic("sort", path.Join(pipedir, fmt.Sprintf("sw_sort_%d", k)))
 
 		// Compress results
@@ -209,14 +209,14 @@ func sortWindows() {
 		wf.SetDriver(rc)
 		wf.Run()
 
-		logger.Printf("done\n")
+		logger.Print("done\n")
 	}
 
-	logger.Printf("sortWindows done")
+	logger.Print("sortWindows done")
 }
 
 func screen() {
-	logger.Printf("Starting screening")
+	logger.Print("Starting screening")
 	logger.Printf("Running command: 'muscato_screen %s'\n", configFilePath)
 	cmd := exec.Command("muscato_screen", configFilePath)
 	cmd.Env = os.Environ()
@@ -227,12 +227,12 @@ func screen() {
 		os.Stderr.WriteString(msg)
 		log.Fatal(err)
 	}
-	logger.Printf("Screening done")
+	logger.Print("Screening done")
 }
 
 func sortBloom() {
 
-	logger.Printf("Starting sortBloom")
+	logger.Print("Starting sortBloom")
 
 	for k := range config.Windows {
 
@@ -246,7 +246,7 @@ func sortBloom() {
 
 		// Sort the matches
 		c := fmt.Sprintf("sort -S 80%% %s -k1 %s {i:in} > {os:sort}", sortpar, sortTmpFlag)
-		logger.Printf(c)
+		logger.Print(c)
 		sm := wf.NewProc("sm", c)
 		sm.SetPathStatic("sort", path.Join(pipedir, fmt.Sprintf("sb_sort_%d", k)))
 
@@ -262,15 +262,15 @@ func sortBloom() {
 		wf.SetDriver(rc)
 		wf.Run()
 
-		logger.Printf("done")
+		logger.Print("done")
 	}
 
-	logger.Printf("sortBloom done")
+	logger.Print("sortBloom done")
 }
 
 func confirm() {
 
-	logger.Printf("Starting match confirmation")
+	logger.Print("Starting match confirmation")
 	fp := 0
 	for {
 		nproc := config.MaxConfirmProcs
@@ -283,7 +283,7 @@ func confirm() {
 
 		var cmds []*exec.Cmd
 		for k := fp; k < fp+nproc; k++ {
-			logger.Printf("Starting a round of confirmation processes")
+			logger.Print("Starting a round of confirmation processes")
 			logger.Printf("Running command: 'muscato_confirm %s %d'\n", configFilePath, k)
 			cmd := exec.Command("muscato_confirm", configFilePath, fmt.Sprintf("%d", k))
 			cmd.Env = os.Environ()
@@ -308,7 +308,7 @@ func confirm() {
 		fp += nproc
 	}
 
-	logger.Printf("Match confirmation done")
+	logger.Print("Match confirmation done")
 }
 
 // writebest accepts a set of lines (lines), which have also been
@@ -350,12 +350,12 @@ func writebest(lines []string, bfr [][]string, wtr io.Writer, ibuf []int, mmtol 
 
 func combineWindows() {
 
-	logger.Printf("starting combineWindows")
+	logger.Print("starting combineWindows")
 
 	mmtol := config.MMTol
 
 	// Pipe everything into one sort/unique
-	c0 := exec.Command("sort", sortmem, sortpar, sortTmpFlag, "-u", "-")
+	c0 := exec.Command("sort", "-S 80%", sortpar, sortTmpFlag, "-u", "-")
 	c0.Env = os.Environ()
 	c0.Stderr = os.Stderr
 	cmds := []*exec.Cmd{c0}
@@ -474,12 +474,12 @@ func combineWindows() {
 	wtr.Close()
 	out.Close()
 
-	logger.Printf("combineWindows done")
+	logger.Print("combineWindows done")
 }
 
 func sortByGeneId() {
 
-	logger.Printf("starting sortByGeneid")
+	logger.Print("starting sortByGeneid")
 	inname := path.Join(config.TempDir, "matches.txt.sz")
 	outname := path.Join(config.TempDir, "matches_sg.txt.sz")
 
@@ -529,12 +529,12 @@ func sortByGeneId() {
 		}
 	}
 
-	logger.Printf("sortbyGeneId done")
+	logger.Print("sortbyGeneId done")
 }
 
 func joinGeneNames() {
 
-	logger.Printf("starting joinGeneNames")
+	logger.Print("starting joinGeneNames")
 	wf := scipipe.NewWorkflow("jgn", 5)
 
 	// Decompress matches
@@ -565,12 +565,12 @@ func joinGeneNames() {
 	wf.SetDriver(sz)
 	wf.Run()
 
-	logger.Printf("joinGeneNames done")
+	logger.Print("joinGeneNames done")
 }
 
 func joinReadNames() {
 
-	logger.Printf("starting joinReadNames")
+	logger.Print("starting joinReadNames")
 	wf := scipipe.NewWorkflow("jrn", 4)
 
 	// The workflow hangs if the results file already exists, so
@@ -621,7 +621,7 @@ func joinReadNames() {
 	wf.SetDriver(snk)
 	wf.Run()
 
-	logger.Printf("joinReadNames done")
+	logger.Print("joinReadNames done")
 }
 
 func setupLog() {
@@ -1010,7 +1010,7 @@ func writeNonMatch() {
 		}
 	}
 
-	logger.Printf("writeNonMatch done")
+	logger.Print("writeNonMatch done")
 }
 
 // readStats calculates statistics for each read, using a results
@@ -1123,7 +1123,7 @@ func cleanPipes() {
 	if err != nil {
 		logger.Print("Can't remove pipes:")
 		logger.Print(err)
-		logger.Printf("Continuing anyway...\n")
+		logger.Print("Continuing anyway...\n")
 	}
 }
 
@@ -1134,7 +1134,7 @@ func cleanTmp() {
 		if err != nil {
 			logger.Print("Can't remove temporary files:")
 			logger.Print(err)
-			logger.Printf("Continuing anyway...\n")
+			logger.Print("Continuing anyway...\n")
 		}
 	}
 }
@@ -1187,5 +1187,5 @@ func main() {
 
 	run()
 
-	logger.Printf("All done, exit after cleanup")
+	logger.Print("All done, exit after cleanup")
 }

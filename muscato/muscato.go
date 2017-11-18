@@ -192,7 +192,7 @@ func sortWindows() {
 		dc.SetPathStatic("dx", path.Join(pipedir, fmt.Sprintf("sw_dc_%d", k)))
 
 		// Sort the matches
-		sc := fmt.Sprintf("sort %s %s -k1 %s {i:in} > {o:sort}", sortmem, sortpar, sortTmpFlag)
+		sc := fmt.Sprintf("sort -S 80%% %s -k1 %s {i:in} > {o:sort}", sortpar, sortTmpFlag)
 		sm := wf.NewProc("sm", sc)
 		logger.Printf(sc)
 		sm.SetPathStatic("sort", path.Join(pipedir, fmt.Sprintf("sw_sort_%d", k)))
@@ -245,7 +245,7 @@ func sortBloom() {
 		dc.SetPathStatic("dx", path.Join(pipedir, fmt.Sprintf("sb_dc_%d", k)))
 
 		// Sort the matches
-		c := fmt.Sprintf("sort %s %s -k1 %s {i:in} > {os:sort}", sortmem, sortpar, sortTmpFlag)
+		c := fmt.Sprintf("sort -S 80%% %s -k1 %s {i:in} > {os:sort}", sortpar, sortTmpFlag)
 		logger.Printf(c)
 		sm := wf.NewProc("sm", c)
 		sm.SetPathStatic("sort", path.Join(pipedir, fmt.Sprintf("sb_sort_%d", k)))
@@ -488,7 +488,7 @@ func sortByGeneId() {
 	cmd1.Env = os.Environ()
 	cmd1.Stderr = os.Stderr
 	// k5 is position of gene id
-	cmd2 := exec.Command("sort", sortmem, sortpar, sortTmpFlag, "-k5", "-")
+	cmd2 := exec.Command("sort", "-S 80%", sortpar, sortTmpFlag, "-k5", "-")
 	cmd2.Env = os.Environ()
 	cmd2.Stderr = os.Stderr
 	var err error
@@ -602,7 +602,7 @@ func joinReadNames() {
 	rd.SetPathStatic("rd", path.Join(pipedir, "jrn_rd.txt"))
 
 	// Sort the matches
-	sm := wf.NewProc("sm", fmt.Sprintf("sort %s %s -k1 %s {i:in} > {os:sort}", sortmem, sortpar, sortTmpFlag))
+	sm := wf.NewProc("sm", fmt.Sprintf("sort -S 80%% %s -k1 %s {i:in} > {os:sort}", sortpar, sortTmpFlag))
 	sm.SetPathStatic("sort", path.Join(pipedir, "jrn_sort.txt"))
 
 	// Join the sorted matches with the reads

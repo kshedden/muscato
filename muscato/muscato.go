@@ -355,7 +355,12 @@ func combineWindows() {
 	mmtol := config.MMTol
 
 	// Pipe everything into one sort/unique
-	c0 := exec.Command("sort", "-S 80%", sortpar, sortTmpFlag, "-u", "-")
+	var c0 *exec.Cmd
+	if sortTmpFlag != "" {
+		c0 = exec.Command("sort", "-S 80%", sortpar, sortTmpFlag, "-u", "-")
+	} else {
+		c0 = exec.Command("sort", "-S 80%", sortpar, "-u", "-")
+	}
 	c0.Env = os.Environ()
 	c0.Stderr = os.Stderr
 	cmds := []*exec.Cmd{c0}
@@ -488,7 +493,12 @@ func sortByGeneId() {
 	cmd1.Env = os.Environ()
 	cmd1.Stderr = os.Stderr
 	// k5 is position of gene id
-	cmd2 := exec.Command("sort", "-S 80%", sortpar, sortTmpFlag, "-k5", "-")
+	var cmd2 *exec.Cmd
+	if sortTmpFlag != "" {
+		cmd2 = exec.Command("sort", "-S 80%", sortpar, sortTmpFlag, "-k5", "-")
+	} else {
+		cmd2 = exec.Command("sort", "-S 80%", sortpar, "-k5", "-")
+	}
 	cmd2.Env = os.Environ()
 	cmd2.Stderr = os.Stderr
 	var err error
@@ -757,15 +767,6 @@ func handleArgs() {
 	}
 	if config.SortTemp != "" {
 		sortTmpFlag = fmt.Sprintf("--temporary-directory=%s", config.SortTemp)
-	} else {
-		sortTmpFlag = path.Join(config.TempDir, "sort")
-		err := os.MkdirAll(sortTmpFlag, 0755)
-		if err != nil {
-			msg := "Error in handleArgs, see log files for details.\n"
-			os.Stderr.WriteString(msg)
-			log.Fatal(err)
-		}
-		sortTmpFlag = "--temporary-directory=" + sortTmpFlag
 	}
 
 	if config.ResultsFileName == "" {

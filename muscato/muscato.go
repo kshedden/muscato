@@ -756,7 +756,7 @@ func handleArgs() {
 		config.SortTemp = *SortTemp
 	}
 	if config.SortTemp != "" {
-		sortTmpFlag = fmt.Sprintf("--temporary-director=%s", config.SortTemp)
+		sortTmpFlag = fmt.Sprintf("--temporary-directory=%s", config.SortTemp)
 	} else {
 		sortTmpFlag = path.Join(config.TempDir, "sort")
 		err := os.MkdirAll(sortTmpFlag, 0755)

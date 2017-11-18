@@ -507,7 +507,7 @@ func main() {
 	}
 
 	if config.CPUProfile {
-		f, err := os.Create("muscato_screen_cpu.prof")
+		f, err := os.Create(path.Join(config.LogDir, "muscato_screen_cpu.prof"))
 		if err != nil {
 			panic(err)
 		}

@@ -760,6 +760,7 @@ func handleArgs() {
 	// Configure the temporary directory for sort.
 	if *SortTemp != "" {
 		config.SortTemp = *SortTemp
+		os.MkdirAll(config.SortTemp, 0755)
 	}
 	if config.SortTemp != "" {
 		sortTmpFlag = fmt.Sprintf("--temporary-directory=%s", config.SortTemp)

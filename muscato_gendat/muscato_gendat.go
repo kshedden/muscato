@@ -88,9 +88,10 @@ func generateGenes() {
 		fid.WriteString(fmt.Sprintf("gene_%d\t", i))
 
 		if i < len(reads) {
-			writeRand(fid, i)
+			j := i % 10
+			writeRand(fid, j)
 			fid.WriteString(reads[i])
-			writeRand(fid, geneLen-(readLen+i))
+			writeRand(fid, geneLen-(readLen+j))
 		} else {
 			writeRand(fid, geneLen)
 		}

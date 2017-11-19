@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"flag"
 	"fmt"
@@ -25,11 +26,13 @@ func generateReads() {
 		panic(err)
 	}
 	defer fid.Close()
+	w := bufio.NewWriter(fid)
+	defer w.Flush()
 
 	var buf bytes.Buffer
 
 	for i := 0; i < numRead; i++ {
-		fid.WriteString(fmt.Sprintf("read_%d\n", i))
+		w.WriteString(fmt.Sprintf("read_%d\n", i))
 
 		buf.Reset()
 		for j := 0; j < readLen; j++ {
@@ -45,17 +48,17 @@ func generateReads() {
 				buf.Write([]byte("C"))
 			}
 		}
-		fid.Write(buf.Bytes())
+		w.Write(buf.Bytes())
 
 		if i < 10 {
 			reads = append(reads, string(buf.Bytes()))
 		}
 
-		fid.WriteString("\n+\n")
+		w.WriteString("\n+\n")
 		for j := 0; j < readLen; j++ {
-			fid.WriteString("!")
+			w.WriteString("!")
 		}
-		fid.WriteString("\n")
+		w.WriteString("\n")
 	}
 }
 
@@ -83,19 +86,21 @@ func generateGenes() {
 		panic(err)
 	}
 	defer fid.Close()
+	w := bufio.NewWriter(fid)
+	defer w.Flush()
 
 	for i := 0; i < numGene; i++ {
-		fid.WriteString(fmt.Sprintf("gene_%d\t", i))
+		w.WriteString(fmt.Sprintf("gene_%d\t", i))
 
 		if i < len(reads) {
 			j := i % 10
-			writeRand(fid, j)
-			fid.WriteString(reads[i])
-			writeRand(fid, geneLen-(readLen+j))
+			writeRand(w, j)
+			w.WriteString(reads[i])
+			writeRand(w, geneLen-(readLen+j))
 		} else {
-			writeRand(fid, geneLen)
+			writeRand(w, geneLen)
 		}
-		fid.WriteString("\n")
+		w.WriteString("\n")
 	}
 }
 

@@ -4,10 +4,10 @@
 # components of Muscato.
 
 all: muscato muscato_screen muscato_confirm muscato_prep_reads muscato_prep_targets\
-	muscato_window_reads muscato_uniqify muscato_genestats
+	muscato_window_reads muscato_uniqify muscato_genestats muscato_gendat
 
 .PHONY: muscato muscato_screen muscato_confirm muscato_prep_reads muscato_prep_targets\
-	muscato_window_reads muscato_uniqify muscato_genestats
+	muscato_window_reads muscato_uniqify muscato_genestats muscato_gendat
 
 muscato:
 	go install ./muscato
@@ -32,3 +32,6 @@ muscato_prep_targets:
 
 muscato_window_reads:
 	go install ./muscato_window_reads
+
+muscato_gendat:
+	go install ./muscato_gendat

@@ -415,12 +415,25 @@ func main() {
 	out := snappy.NewBufferedWriter(fi)
 	defer out.Close()
 
-	source.Next()
-	match.Next()
-
 	rsltChan = make(chan []byte, 5*concurrency)
 	limit := make(chan bool, concurrency)
 	alldone = make(chan bool)
+
+	defer func() {
+		logger.Print("clearing channel")
+		for k := 0; k < cap(limit); k++ {
+			limit <- true
+		}
+		close(rsltChan)
+		<-alldone
+	}()
+
+	ms := source.Next()
+	mb := match.Next()
+	if !(ms || mb) {
+		logger.Printf("No matches found, done.")
+		return
+	}
 
 	// Harvest the results
 	go func() {
@@ -476,14 +489,6 @@ lp:
 			logger.Printf("ms=%v, mb=%v\n", ms, mb)
 		}
 	}
-
-	logger.Print("clearing channel")
-	for k := 0; k < cap(limit); k++ {
-		limit <- true
-	}
-
-	close(rsltChan)
-	<-alldone
 
 	logger.Print("done")
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -12,6 +13,8 @@ var (
 	readLen int
 	numGene int
 	geneLen int
+
+	reads []string
 )
 
 func generateReads() {
@@ -22,21 +25,31 @@ func generateReads() {
 	}
 	defer fid.Close()
 
+	var buf bytes.Buffer
+
 	for i := 0; i < numRead; i++ {
 		fid.WriteString(fmt.Sprintf("read_%d\n", i))
+
+		buf.Reset()
 		for j := 0; j < readLen; j++ {
 			x := rand.Float64()
 			switch {
 			case x < 0.25:
-				fid.WriteString("A")
+				buf.Write([]byte("A"))
 			case x < 0.5:
-				fid.WriteString("T")
+				buf.Write([]byte("T"))
 			case x < 0.75:
-				fid.WriteString("G")
+				buf.Write([]byte("G"))
 			default:
-				fid.WriteString("C")
+				buf.Write([]byte("C"))
 			}
 		}
+		fid.Write(buf.Bytes())
+
+		if i < 10 {
+			reads = append(reads, string(buf.Bytes()))
+		}
+
 		fid.WriteString("\n+\n")
 		for j := 0; j < readLen; j++ {
 			fid.WriteString("!")
@@ -55,7 +68,14 @@ func generateGenes() {
 
 	for i := 0; i < numGene; i++ {
 		fid.WriteString(fmt.Sprintf("gene_%d\t", i))
-		for j := 0; j < geneLen; j++ {
+
+		m := geneLen
+		if i < len(reads) {
+			fid.WriteString(reads[i])
+			m = geneLen - readLen
+		}
+
+		for j := 0; j < m; j++ {
 			x := rand.Float64()
 			switch {
 			case x < 0.25:

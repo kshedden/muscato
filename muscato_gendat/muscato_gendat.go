@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"io"
 	"math/rand"
 	"os"
 )
@@ -58,6 +59,23 @@ func generateReads() {
 	}
 }
 
+func writeRand(w io.Writer, n int) {
+
+	for j := 0; j < n; j++ {
+		x := rand.Float64()
+		switch {
+		case x < 0.25:
+			w.Write([]byte("A"))
+		case x < 0.5:
+			w.Write([]byte("T"))
+		case x < 0.75:
+			w.Write([]byte("G"))
+		default:
+			w.Write([]byte("C"))
+		}
+	}
+}
+
 func generateGenes() {
 
 	fid, err := os.Create("genes.txt")
@@ -69,24 +87,12 @@ func generateGenes() {
 	for i := 0; i < numGene; i++ {
 		fid.WriteString(fmt.Sprintf("gene_%d\t", i))
 
-		m := geneLen
 		if i < len(reads) {
+			writeRand(fid, i)
 			fid.WriteString(reads[i])
-			m = geneLen - readLen
-		}
-
-		for j := 0; j < m; j++ {
-			x := rand.Float64()
-			switch {
-			case x < 0.25:
-				fid.WriteString("A")
-			case x < 0.5:
-				fid.WriteString("T")
-			case x < 0.75:
-				fid.WriteString("G")
-			default:
-				fid.WriteString("C")
-			}
+			writeRand(fid, geneLen-(readLen+i))
+		} else {
+			writeRand(fid, geneLen)
 		}
 		fid.WriteString("\n")
 	}

@@ -336,6 +336,8 @@ func processseq(seq []byte, genenum int, errc chan error) {
 // Retrieve the results and write to disk
 func harvest(wg *sync.WaitGroup) {
 
+	var warn int
+
 	var wtrs []io.Writer
 	var allwtrs []io.Closer
 	for k := 0; k < len(config.Windows); k++ {
@@ -355,6 +357,13 @@ func harvest(wg *sync.WaitGroup) {
 	bb[bufsize-1] = byte('\n')
 
 	for r := range hitchan {
+
+		if len(hitchan) > cap(hitchan)/2 {
+			if warn%100 == 0 {
+				logger.Print("hitchan more than half full")
+			}
+			warn++
+		}
 
 		wtr := wtrs[r.win]
 

@@ -337,7 +337,7 @@ func processseq(seq []byte, genenum int, errc chan error) {
 // Retrieve the results and write to disk
 func harvest(wg *sync.WaitGroup) {
 
-	var warn int
+	//var warn int
 
 	var wtrs []io.Writer
 	var allwtrs []io.Closer
@@ -359,22 +359,21 @@ func harvest(wg *sync.WaitGroup) {
 
 	tab := []byte("\t")
 
+	// TODO: may want to rearchitect so that each window has its
+	// own channel.  This single channel is limiting concurrency
+	// of the feeder channels.
 	for r := range hitchan {
 
-		if len(hitchan) > cap(hitchan)/2 {
-			if warn%100 == 0 {
-				logger.Print("hitchan more than half full")
+		/*
+			if len(hitchan) > cap(hitchan)/2 {
+				if warn%1000 == 0 {
+					logger.Print("hitchan more than half full")
+				}
+				warn++
 			}
-			warn++
-		}
+		*/
 
 		wtr := wtrs[r.win]
-
-		//n1, err1 := wtr.Write([]byte(fmt.Sprintf("%s\t", r.mseq)))
-		//n2, err2 := wtr.Write([]byte(fmt.Sprintf("%s\t", r.left)))
-		//n3, err3 := wtr.Write([]byte(fmt.Sprintf("%s\t", r.right)))
-		//n4, err4 := wtr.Write([]byte(fmt.Sprintf("%011d\t", r.tnum)))
-		//n5, err5 := wtr.Write([]byte(fmt.Sprintf("%d", r.pos)))
 
 		n1, _ := wtr.Write([]byte(r.mseq))
 		n2, _ := wtr.Write(tab)

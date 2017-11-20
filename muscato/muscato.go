@@ -93,6 +93,7 @@ var (
 	sortTmpFlag string
 
 	sortpar string
+	sortmem string
 )
 
 // geneStats
@@ -100,7 +101,7 @@ func geneStats() {
 
 	wf := scipipe.NewWorkflow("gs", 4)
 
-	c := fmt.Sprintf("sort -S 80%% %s %s %s -k 5 > {os:outsort}", sortpar, sortTmpFlag, config.ResultsFileName)
+	c := fmt.Sprintf("sort %s %s %s %s -k 5 > {os:outsort}", sortmem, sortpar, sortTmpFlag, config.ResultsFileName)
 	logger.Print(c)
 	gsrt := wf.NewProc("gsrt", c)
 	gsrt.SetPathStatic("outsort", path.Join(pipedir, "gs_outsort"))
@@ -138,7 +139,7 @@ func prepReads() {
 	dc.SetPathStatic("mpr_out", path.Join(pipedir, "pr_mpr"))
 
 	// Sort the output of muscato_prep_reads
-	c := fmt.Sprintf("sort -S 80%% %s %s {i:insort} > {os:outsort}", sortpar, sortTmpFlag)
+	c := fmt.Sprintf("sort %s %s %s {i:insort} > {os:outsort}", sortmem, sortpar, sortTmpFlag)
 	logger.Print(c)
 	sr := wf.NewProc("sr", c)
 	sr.SetPathStatic("outsort", path.Join(pipedir, "pr_outsort"))
@@ -191,7 +192,7 @@ func sortWindows() {
 		dc.SetPathStatic("dx", path.Join(pipedir, fmt.Sprintf("sw_dc_%d", k)))
 
 		// Sort the matches
-		sc := fmt.Sprintf("sort -S 80%% %s -k1 %s {i:in} > {o:sort}", sortpar, sortTmpFlag)
+		sc := fmt.Sprintf("sort %s %s -k1 %s {i:in} > {o:sort}", sortmem, sortpar, sortTmpFlag)
 		sm := wf.NewProc("sm", sc)
 		logger.Print(sc)
 		sm.SetPathStatic("sort", path.Join(pipedir, fmt.Sprintf("sw_sort_%d", k)))
@@ -244,7 +245,7 @@ func sortBloom() {
 		dc.SetPathStatic("dx", path.Join(pipedir, fmt.Sprintf("sb_dc_%d", k)))
 
 		// Sort the matches
-		c := fmt.Sprintf("sort -S 80%% %s -k1 %s {i:in} > {os:sort}", sortpar, sortTmpFlag)
+		c := fmt.Sprintf("sort %s %s -k1 %s {i:in} > {os:sort}", sortmem, sortpar, sortTmpFlag)
 		logger.Print(c)
 		sm := wf.NewProc("sm", c)
 		sm.SetPathStatic("sort", path.Join(pipedir, fmt.Sprintf("sb_sort_%d", k)))
@@ -356,9 +357,9 @@ func combineWindows() {
 	// Pipe everything into one sort/unique
 	var c0 *exec.Cmd
 	if sortTmpFlag != "" {
-		c0 = exec.Command("sort", "-S 80%", sortpar, sortTmpFlag, "-u", "-")
+		c0 = exec.Command("sort", sortmem, sortpar, sortTmpFlag, "-u", "-")
 	} else {
-		c0 = exec.Command("sort", "-S 80%", sortpar, "-u", "-")
+		c0 = exec.Command("sort", sortmem, sortpar, "-u", "-")
 	}
 	c0.Env = os.Environ()
 	c0.Stderr = os.Stderr
@@ -493,9 +494,9 @@ func sortByGeneId() {
 	// k5 is position of gene id
 	var cmd2 *exec.Cmd
 	if sortTmpFlag != "" {
-		cmd2 = exec.Command("sort", "-S 80%", sortpar, sortTmpFlag, "-k5", "-")
+		cmd2 = exec.Command("sort", sortmem, sortpar, sortTmpFlag, "-k5", "-")
 	} else {
-		cmd2 = exec.Command("sort", "-S 80%", sortpar, "-k5", "-")
+		cmd2 = exec.Command("sort", sortmem, sortpar, "-k5", "-")
 	}
 	cmd2.Env = os.Environ()
 	cmd2.Stderr = os.Stderr
@@ -610,7 +611,7 @@ func joinReadNames() {
 	rd.SetPathStatic("rd", path.Join(pipedir, "jrn_rd.txt"))
 
 	// Sort the matches
-	sm := wf.NewProc("sm", fmt.Sprintf("sort -S 80%% %s -k1 %s {i:in} > {os:sort}", sortpar, sortTmpFlag))
+	sm := wf.NewProc("sm", fmt.Sprintf("sort %s %s -k1 %s {i:in} > {os:sort}", sortmem, sortpar, sortTmpFlag))
 	sm.SetPathStatic("sort", path.Join(pipedir, "jrn_sort.txt"))
 
 	// Join the sorted matches with the reads
@@ -666,6 +667,8 @@ func saveConfig(config *utils.Config) {
 
 func handleArgs() {
 
+	// Can't use logger in here because it has not been created yet, write errors/warnings to Stderr.
+
 	ConfigFileName := flag.String("ConfigFileName", "", "JSON file containing configuration parameters")
 	ReadFileName := flag.String("ReadFileName", "", "Sequencing read file (fastq format)")
 	GeneFileName := flag.String("GeneFileName", "", "Gene file name (processed form)")
@@ -685,8 +688,9 @@ func handleArgs() {
 	MMTol := flag.Int("MMTol", 0, "Number of mismatches allowed above best fit")
 	MatchMode := flag.String("MatchMode", "", "'first' or 'best' (retain first/best 'MaxMatches' matches meeting criteria)")
 	NoCleanTemp := flag.Bool("NoCleanTemp", false, "Do not delete temporary files from TempDir")
-	SortPar := flag.Int("SortPar", 8, "Number of parallel sort processes")
+	SortPar := flag.Int("SortPar", 0, "Number of parallel sort processes")
 	SortTemp := flag.String("SortTemp", "", "Directory to use for sort temp files")
+	SortMem := flag.String("SortMem", "", "Gnu sort -S parameter")
 	CPUProfile := flag.Bool("CPUProfile", false, "Capture CPU profile data")
 
 	flag.Parse()
@@ -751,11 +755,12 @@ func handleArgs() {
 	if *CPUProfile {
 		config.CPUProfile = true
 	}
-
 	if *SortPar != 0 {
 		config.SortPar = *SortPar
 	}
-	sortpar = fmt.Sprintf("--parallel=%d", *SortPar)
+	if *SortMem != "" {
+		config.SortMem = *SortMem
+	}
 
 	// Configure the temporary directory for sort.
 	if *SortTemp != "" {
@@ -846,6 +851,18 @@ func checkArgs() {
 		os.Stderr.WriteString("MatchMode not provided, defaulting to 'best'\n")
 		config.MatchMode = "best"
 	}
+
+	if config.SortPar == 0 {
+		// warning not needed
+		config.SortPar = 8
+	}
+	sortpar = fmt.Sprintf("--parallel=%d", config.SortPar)
+
+	if config.SortMem == "" {
+		os.Stderr.WriteString("SortMem not provided, defaulting to 50%\n")
+		config.SortMem = "50%"
+	}
+	sortmem = fmt.Sprintf("-S %s", config.SortMem)
 }
 
 func setupEnvs() {

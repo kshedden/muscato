@@ -88,6 +88,9 @@ type Config struct {
 	// use TempDir/sort.
 	SortTemp string
 
+	// The -S parameter for Gnu sort.
+	SortMem string
+
 	// If true, temporary files are not removed upon program
 	// completion.  If false, which is the default, the temporary
 	// files are removed.

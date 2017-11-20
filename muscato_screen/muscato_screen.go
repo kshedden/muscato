@@ -40,6 +40,7 @@ import (
 	"os"
 	"path"
 	"runtime/pprof"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -356,6 +357,8 @@ func harvest(wg *sync.WaitGroup) {
 	bb := bytes.Repeat([]byte(" "), bufsize)
 	bb[bufsize-1] = byte('\n')
 
+	tab := []byte("\t")
+
 	for r := range hitchan {
 
 		if len(hitchan) > cap(hitchan)/2 {
@@ -367,22 +370,24 @@ func harvest(wg *sync.WaitGroup) {
 
 		wtr := wtrs[r.win]
 
-		n1, err1 := wtr.Write([]byte(fmt.Sprintf("%s\t", r.mseq)))
-		n2, err2 := wtr.Write([]byte(fmt.Sprintf("%s\t", r.left)))
-		n3, err3 := wtr.Write([]byte(fmt.Sprintf("%s\t", r.right)))
-		n4, err4 := wtr.Write([]byte(fmt.Sprintf("%011d\t", r.tnum)))
-		n5, err5 := wtr.Write([]byte(fmt.Sprintf("%d", r.pos)))
+		//n1, err1 := wtr.Write([]byte(fmt.Sprintf("%s\t", r.mseq)))
+		//n2, err2 := wtr.Write([]byte(fmt.Sprintf("%s\t", r.left)))
+		//n3, err3 := wtr.Write([]byte(fmt.Sprintf("%s\t", r.right)))
+		//n4, err4 := wtr.Write([]byte(fmt.Sprintf("%011d\t", r.tnum)))
+		//n5, err5 := wtr.Write([]byte(fmt.Sprintf("%d", r.pos)))
 
-		for _, err := range []error{err1, err2, err3, err4, err5} {
-			if err != nil {
-				logger.Print(err)
-				panic("writing error")
-			}
-		}
+		n1, _ := wtr.Write([]byte(r.mseq))
+		n2, _ := wtr.Write(tab)
+		n3, _ := wtr.Write([]byte(r.left))
+		n4, _ := wtr.Write(tab)
+		n5, _ := wtr.Write([]byte(r.right))
+		n6, _ := wtr.Write(tab)
+		n7, _ := wtr.Write([]byte(fmt.Sprintf("%011d\t", r.tnum)))
+		n8, _ := wtr.Write([]byte(strconv.Itoa(int(r.pos))))
 
-		n := n1 + n2 + n3 + n4 + n5
+		n := n1 + n2 + n3 + n4 + n5 + n6 + n7 + n8
 		if n > bufsize {
-			panic("output line is too long")
+			logger.Fatal("output line is too long")
 		}
 
 		// The rest of the line is spaces, then newline.

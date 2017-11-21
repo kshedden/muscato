@@ -356,7 +356,7 @@ func harvest(wg *sync.WaitGroup, ii int) {
 	for r := range hitchan[ii] {
 
 		if len(hitchan[ii]) > cap(hitchan[ii])/2 {
-			if warn%1000 == 0 {
+			if warn%100000 == 0 {
 				logger.Printf("hitchan %d more than half full", ii)
 			}
 			warn++

@@ -772,8 +772,8 @@ func handleArgs() {
 	}
 
 	if config.ResultsFileName == "" {
-		os.Stderr.WriteString("ResultsFileName must be specified.  Run 'muscato --help' for more information.\n\n")
-		os.Exit(1)
+		config.ResultsFileName = "results.txt"
+		os.Stderr.WriteString("ResultsFileName not specified, defaulting to 'results.txt'\n")
 	}
 
 	if *WindowsRaw != "" {
@@ -795,39 +795,39 @@ func handleArgs() {
 func checkArgs() {
 
 	if config.ReadFileName == "" {
-		os.Stderr.WriteString("ReadFileName not provided, run 'muscato --help for more information.\n\n")
+		os.Stderr.WriteString("\nReadFileName not provided, run 'muscato --help for more information.\n\n")
 		os.Exit(1)
 	}
 	if config.GeneFileName == "" {
-		os.Stderr.WriteString("GeneFileName not provided, run 'muscato --help for more information.\n\n")
+		os.Stderr.WriteString("\nGeneFileName not provided, run 'muscato --help for more information.\n\n")
 		os.Exit(1)
 	}
 	if config.GeneIdFileName == "" {
-		os.Stderr.WriteString("GeneIdFileName not provided, run 'muscato --help for more information.\n\n")
+		os.Stderr.WriteString("\nGeneIdFileName not provided, run 'muscato --help for more information.\n\n")
 		os.Exit(1)
 	}
 	if config.ResultsFileName == "" {
 		config.ResultsFileName = "results.txt"
-		os.Stderr.WriteString("ResultsFileName not provided, defaulting to 'results.txt'\n\n")
+		os.Stderr.WriteString("ResultsFileName not provided, defaulting to 'results.txt'\n")
 	}
 	if len(config.Windows) == 0 {
-		os.Stderr.WriteString("Windows not provided, run 'muscato --help for more information.\n\n")
+		os.Stderr.WriteString("\nWindows not provided, run 'muscato --help for more information.\n\n")
 		os.Exit(1)
 	}
 	if config.WindowWidth == 0 {
-		os.Stderr.WriteString("WindowWidth not provided, run 'muscato --help for more information.\n\n")
+		os.Stderr.WriteString("\nWindowWidth not provided, run 'muscato --help for more information.\n\n")
 		os.Exit(1)
 	}
 	if config.BloomSize == 0 {
-		os.Stderr.WriteString("BloomSize not provided, defaulting to 4 billion.\n\n")
+		os.Stderr.WriteString("BloomSize not provided, defaulting to 4 billion\n")
 		config.BloomSize = 4 * 1000 * 1000 * 1000
 	}
 	if config.NumHash == 0 {
-		os.Stderr.WriteString("NumHash not provided, defaulting to 20.\n\n")
+		os.Stderr.WriteString("NumHash not provided, defaulting to 20\n")
 		config.NumHash = 20
 	}
 	if config.PMatch == 0 {
-		os.Stderr.WriteString("PMatch not provided, defaulting to 1.\n\n")
+		os.Stderr.WriteString("PMatch not provided, defaulting to 1\n")
 		config.PMatch = 1
 	}
 	if config.MaxReadLength == 0 {
@@ -835,15 +835,15 @@ func checkArgs() {
 		os.Exit(1)
 	}
 	if config.MaxMatches == 0 {
-		os.Stderr.WriteString("MaxMatches not provided, defaulting to 1 million\n\n")
+		os.Stderr.WriteString("MaxMatches not provided, defaulting to 1 million\n")
 		config.MaxMatches = 1000 * 1000
 	}
 	if config.MaxConfirmProcs == 0 {
-		os.Stderr.WriteString("MaxConfirmProcs not provided, defaulting to 3\n\n")
+		os.Stderr.WriteString("MaxConfirmProcs not provided, defaulting to 3\n")
 		config.MaxConfirmProcs = 3
 	}
 	if !strings.HasSuffix(config.ReadFileName, ".fastq") {
-		msg := fmt.Sprintf("Warning: %s may not be a fastq file, continuing anyway\n\n",
+		msg := fmt.Sprintf("Warning: %s may not be a fastq file, continuing anyway\n",
 			config.ReadFileName)
 		os.Stderr.WriteString(msg)
 	}

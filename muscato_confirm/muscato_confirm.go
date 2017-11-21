@@ -36,9 +36,6 @@ const (
 	concurrency = 100
 
 	doProfile = false
-
-	// Maintain a pool of byte arrays of length bufsize
-	poolsize = 10000
 )
 
 var (
@@ -48,15 +45,10 @@ var (
 
 	tmpdir string
 
-	// Pool of reusable byte slices
-	pool chan []byte
-
 	win int // The window to process, win=0,1,...
 
 	// Pass results to driver then write to disk
 	rsltChan chan []byte
-
-	bufsize int
 
 	alldone chan bool
 )
@@ -64,32 +56,6 @@ var (
 type rec struct {
 	buf    []byte
 	fields [][]byte
-}
-
-func (r *rec) Print() {
-	fmt.Printf("len(buf)=%d\n", len(r.buf))
-	for k, f := range r.fields {
-		fmt.Printf("%d %s\n", k, string(f))
-	}
-}
-
-func (r *rec) release() {
-	if r.buf == nil {
-		logger.Print("nothing to release")
-		panic("nothing to release")
-	}
-	putbuf(r.buf)
-	r.buf = nil
-	r.fields = nil
-}
-
-func (r *rec) init() {
-	if r.buf != nil {
-		logger.Print("cannot init non-nil rec")
-		panic("cannot init non-nil rec")
-	}
-	r.buf = getbuf()
-	r.buf = r.buf[0:0]
 }
 
 func (r *rec) setfields() {
@@ -135,9 +101,6 @@ func (b *breader) Next() bool {
 		return false
 	}
 
-	for _, b := range b.recs {
-		b.release()
-	}
 	b.recs = b.recs[0:0]
 
 	if b.stash != nil {
@@ -149,13 +112,8 @@ func (b *breader) Next() bool {
 
 		// Process a line
 		bb := b.scanner.Bytes()
-		if len(bb) > bufsize {
-			logger.Print("line too long")
-			panic("line too long")
-		}
 		rx := new(rec)
-		rx.init()
-		rx.buf = rx.buf[0:len(bb)]
+		rx.buf = make([]byte, len(bb))
 		copy(rx.buf, bb)
 		rx.setfields()
 
@@ -198,25 +156,6 @@ func cdiff(x, y []byte) int {
 		}
 	}
 	return c
-}
-
-func putbuf(buf []byte) {
-	select {
-	case pool <- buf[0:0]:
-	default:
-		// pool is full, buffer goes to garbage
-	}
-}
-
-func getbuf() []byte {
-	var buf []byte
-	select {
-	case buf = <-pool:
-		buf = buf[0:0]
-	default:
-		buf = make([]byte, 0, bufsize)
-	}
-	return buf
 }
 
 type qrect struct {
@@ -279,8 +218,7 @@ func searchpairs(source, match []*rec, limit chan bool) {
 			}
 
 			// Found a match, pass to output
-			buf := getbuf()
-			bbuf := bytes.NewBuffer(buf)
+			var bbuf bytes.Buffer
 			bbuf.Write(slft)
 			bbuf.Write(stag)
 			bbuf.Write(srgt)
@@ -309,13 +247,6 @@ E:
 	for _, v := range qvals {
 		rsltChan <- v.gob
 	}
-
-	for _, x := range source {
-		x.release()
-	}
-	for _, x := range match {
-		x.release()
-	}
 }
 
 func setupLog(win int) {
@@ -332,8 +263,7 @@ func rcpy(r []*rec) []*rec {
 	x := make([]*rec, len(r))
 	for j := range x {
 		x[j] = new(rec)
-		x[j].init()
-		x[j].buf = x[j].buf[0:len(r[j].buf)]
+		x[j].buf = make([]byte, len(r[j].buf))
 		copy(x[j].buf, r[j].buf)
 		x[j].setfields()
 	}
@@ -354,8 +284,6 @@ func main() {
 	} else {
 		tmpdir = config.TempDir
 	}
-
-	bufsize = 2*config.MaxReadLength + 50
 
 	var err error
 	win, err = strconv.Atoi(os.Args[2])
@@ -380,8 +308,6 @@ func main() {
 	f = fmt.Sprintf("rmatch_%d.txt.sz", win)
 	outfile := path.Join(tmpdir, f)
 	logger.Printf("outfile: %s", outfile)
-
-	pool = make(chan []byte, poolsize)
 
 	// Read source sequences
 	fid, err := os.Open(sourcefile)
@@ -442,7 +368,6 @@ func main() {
 			if err != nil {
 				panic(err)
 			}
-			putbuf(r)
 		}
 		alldone <- true
 	}()

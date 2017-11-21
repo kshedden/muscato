@@ -34,7 +34,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io"
 	"log"
 	"math/rand"
 	"os"
@@ -74,7 +73,7 @@ var (
 	tables [][256]uint32
 
 	// Communicate results back to driver
-	hitchan chan rec
+	hitchan []chan rec
 
 	// Semaphore for limiting goroutines
 	limit chan bool
@@ -180,7 +179,6 @@ type rec struct {
 	mseq  string
 	left  string
 	right string
-	win   int
 	tnum  int
 	pos   uint32
 }
@@ -273,12 +271,11 @@ func processseq(seq []byte, genenum int, errc chan error) {
 		if jz > len(seq) {
 			jz = len(seq)
 		}
-		hitchan <- rec{
+		hitchan[i] <- rec{
 			mseq:  string(seq[0:hlen]),
 			left:  "",
 			right: string(seq[hlen:jz]),
 			tnum:  genenum,
-			win:   i,
 			pos:   0,
 		}
 	}
@@ -321,12 +318,11 @@ func processseq(seq []byte, genenum int, errc chan error) {
 			}
 
 			if jw >= 0 {
-				hitchan <- rec{
+				hitchan[i] <- rec{
 					mseq:  string(seq[jx:jy]),
 					left:  string(seq[jw:jx]),
 					right: string(seq[jy:jz]),
 					tnum:  genenum,
-					win:   i,
 					pos:   uint32(j - hlen + 1),
 				}
 			}
@@ -334,74 +330,50 @@ func processseq(seq []byte, genenum int, errc chan error) {
 	}
 }
 
-// Retrieve the results and write to disk
-func harvest(wg *sync.WaitGroup) {
+// harvest retrieves the results and writes them to disk
+func harvest(wg *sync.WaitGroup, ii int) {
 
-	//var warn int
+	var warn int
 
-	var wtrs []io.Writer
-	var allwtrs []io.Closer
-	for k := 0; k < len(config.Windows); k++ {
-		f := fmt.Sprintf("bmatch_%d.txt.sz", k)
-		outname := path.Join(tmpdir, f)
-		out, err := os.Create(outname)
-		if err != nil {
-			logger.Print(err)
-			panic(err)
-		}
-		wtr := snappy.NewBufferedWriter(out)
-		wtrs = append(wtrs, wtr)
-		allwtrs = append(allwtrs, wtr, out)
+	f := fmt.Sprintf("bmatch_%d.txt.sz", ii)
+	outname := path.Join(tmpdir, f)
+	out, err := os.Create(outname)
+	if err != nil {
+		logger.Print(err)
+		panic(err)
 	}
+	wtr := snappy.NewBufferedWriter(out)
 
-	bb := bytes.Repeat([]byte(" "), bufsize)
-	bb[bufsize-1] = byte('\n')
+	defer func() {
+		wtr.Close()
+		out.Close()
+		wg.Done()
+	}()
 
 	tab := []byte("\t")
+	newline := []byte("\n")
 
-	// TODO: may want to rearchitect so that each window has its
-	// own channel.  This single channel is limiting concurrency
-	// of the feeder channels.
-	for r := range hitchan {
+	for r := range hitchan[ii] {
 
-		/*
-			if len(hitchan) > cap(hitchan)/2 {
-				if warn%1000 == 0 {
-					logger.Print("hitchan more than half full")
-				}
-				warn++
+		if len(hitchan[ii]) > cap(hitchan[ii])/2 {
+			if warn%1000 == 0 {
+				logger.Printf("hitchan %d more than half full", ii)
 			}
-		*/
-
-		wtr := wtrs[r.win]
-
-		n1, _ := wtr.Write([]byte(r.mseq))
-		n2, _ := wtr.Write(tab)
-		n3, _ := wtr.Write([]byte(r.left))
-		n4, _ := wtr.Write(tab)
-		n5, _ := wtr.Write([]byte(r.right))
-		n6, _ := wtr.Write(tab)
-		n7, _ := wtr.Write([]byte(fmt.Sprintf("%011d\t", r.tnum)))
-		n8, _ := wtr.Write([]byte(strconv.Itoa(int(r.pos))))
-
-		n := n1 + n2 + n3 + n4 + n5 + n6 + n7 + n8
-		if n > bufsize {
-			logger.Fatal("output line is too long")
+			warn++
 		}
 
-		// The rest of the line is spaces, then newline.
-		_, err := wtr.Write(bb[n:bufsize])
-		if err != nil {
-			logger.Print(err)
-			panic(err)
-		}
+		wtr.Write([]byte(r.mseq))
+		wtr.Write(tab)
+		wtr.Write([]byte(r.left))
+		wtr.Write(tab)
+		wtr.Write([]byte(r.right))
+		wtr.Write(tab)
+		wtr.Write([]byte(fmt.Sprintf("%011d\t", r.tnum)))
+		wtr.Write([]byte(strconv.Itoa(int(r.pos))))
+		wtr.Write(newline)
 	}
 
-	for _, wtr := range allwtrs {
-		wtr.Close()
-	}
-	wg.Done()
-	logger.Printf("Exiting harvest")
+	logger.Printf("Exiting harvest %d", ii)
 }
 
 // search loops through the target sequences, checking each window
@@ -423,13 +395,17 @@ func search() error {
 	sbuf := make([]byte, 1024*1024)
 	scanner.Buffer(sbuf, 1024*1024)
 
-	hitchan = make(chan rec, 10000)
+	for k := 0; k < len(config.Windows); k++ {
+		hitchan = append(hitchan, make(chan rec, 10000))
+	}
 	limit = make(chan bool, concurrency)
 	errc := make(chan error, concurrency)
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go harvest(&wg)
+	for k := 0; k < len(config.Windows); k++ {
+		wg.Add(1)
+		go harvest(&wg, k)
+	}
 
 	var i int
 	for ; scanner.Scan(); i++ {
@@ -465,9 +441,12 @@ func search() error {
 	default:
 	}
 
-	close(hitchan)
+	for k := 0; k < len(config.Windows); k++ {
+		close(hitchan[k])
+	}
 	wg.Wait()
 	logger.Printf("Done checking target sequences for matches")
+
 	return nil
 }
 

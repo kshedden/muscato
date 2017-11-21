@@ -333,8 +333,6 @@ func processseq(seq []byte, genenum int, errc chan error) {
 // harvest retrieves the results and writes them to disk
 func harvest(wg *sync.WaitGroup, ii int) {
 
-	var warn int
-
 	f := fmt.Sprintf("bmatch_%d.txt.sz", ii)
 	outname := path.Join(tmpdir, f)
 	out, err := os.Create(outname)
@@ -354,13 +352,6 @@ func harvest(wg *sync.WaitGroup, ii int) {
 	newline := []byte("\n")
 
 	for r := range hitchan[ii] {
-
-		if len(hitchan[ii]) > cap(hitchan[ii])/2 {
-			if warn%100000 == 0 {
-				logger.Printf("hitchan %d more than half full", ii)
-			}
-			warn++
-		}
 
 		wtr.Write([]byte(r.mseq))
 		wtr.Write(tab)
@@ -396,7 +387,10 @@ func search() error {
 	scanner.Buffer(sbuf, 1024*1024)
 
 	for k := 0; k < len(config.Windows); k++ {
-		hitchan = append(hitchan, make(chan rec, 10000))
+		// Channel tends to back up because producers generate
+		// results faster than we can write to disk in some
+		// cases; so make it pretty big.
+		hitchan = append(hitchan, make(chan rec, 20000))
 	}
 	limit = make(chan bool, concurrency)
 	errc := make(chan error, concurrency)

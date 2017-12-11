@@ -765,7 +765,7 @@ func handleArgs() {
 	// Configure the temporary directory for sort.
 	if *SortTemp != "" {
 		config.SortTemp = *SortTemp
-		os.MkdirAll(config.SortTemp, 0755)
+		os.MkdirAll(config.SortTemp, 0770)
 	}
 	if config.SortTemp != "" {
 		sortTmpFlag = fmt.Sprintf("--temporary-directory=%s", config.SortTemp)
@@ -906,7 +906,7 @@ func makeTemp() {
 		// Overwrite the provided TempDir with a subdirectory.
 		config.TempDir = path.Join(config.TempDir, uid)
 	}
-	err = os.MkdirAll(config.TempDir, 0755)
+	err = os.MkdirAll(config.TempDir, 0770)
 	if err != nil {
 		if os.IsNotExist(err) {
 			msg := fmt.Sprintf("Directory %s does not exist and cannot be created.", config.TempDir)
@@ -933,7 +933,7 @@ func makeTemp() {
 		config.LogDir = "muscato_logs"
 	}
 	config.LogDir = path.Join(config.LogDir, uid)
-	err = os.MkdirAll(config.LogDir, 0755)
+	err = os.MkdirAll(config.LogDir, 0770)
 	if err != nil {
 		if os.IsNotExist(err) {
 			msg := fmt.Sprintf("Cannot create directory %s for log files.", config.LogDir)

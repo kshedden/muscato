@@ -186,7 +186,7 @@ func sortWindows() {
 		dc.SetOut("dx", path.Join(pipedir, fmt.Sprintf("sw_dc_%d", k)))
 
 		// Sort the matches
-		sc := fmt.Sprintf("sort %s %s -k1 %s {i:in} > {o:sort}", sortmem, sortpar, sortTmpFlag)
+		sc := fmt.Sprintf("sort %s %s -k1 %s {i:in} > {os:sort}", sortmem, sortpar, sortTmpFlag)
 		sm := wf.NewProc("sm", sc)
 		logger.Print(sc)
 		sm.SetOut("sort", path.Join(pipedir, fmt.Sprintf("sw_sort_%d", k)))

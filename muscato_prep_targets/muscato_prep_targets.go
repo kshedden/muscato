@@ -130,6 +130,7 @@ func processText(scanner *bufio.Scanner, idout, seqout io.Writer, rev bool) {
 	}
 
 	if err := scanner.Err(); err != nil {
+		logger.Printf("Failed on line %d", lnum)
 		panic(err)
 	}
 }
@@ -190,6 +191,8 @@ func processFasta(scanner *bufio.Scanner, idout, seqout io.Writer, rev bool) {
 	}
 
 	if err := scanner.Err(); err != nil {
+		logger.Printf("Failed on line %d", lnum)
+		logger.Printf("Final sequence name: %s", seqname)
 		panic(err)
 	}
 

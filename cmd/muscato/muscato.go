@@ -64,7 +64,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"math"
@@ -84,6 +83,8 @@ import (
 var (
 	configFilePath string
 
+	wf *scipipe.Workflow
+
 	config   *utils.Config
 	basename string
 	pipedir  string
@@ -98,8 +99,6 @@ var (
 
 // geneStats
 func geneStats() {
-
-	wf := scipipe.NewWorkflow("gs", 4)
 
 	c := fmt.Sprintf("sort %s %s %s %s -k 5 > {os:outsort}", sortmem, sortpar, sortTmpFlag, config.ResultsFileName)
 	logger.Print(c)
@@ -119,15 +118,11 @@ func geneStats() {
 	gsta := wf.NewProc("gst", "muscato_genestats {i:insort} > {o:out}")
 	gsta.SetOut("out", outfile)
 	gsta.In("insort").From(gsrt.Out("outsort"))
-
-	wf.Run()
 }
 
 func prepReads() {
 
 	logger.Print("Starting prepReads")
-
-	wf := scipipe.NewWorkflow("prep_reads", 4)
 
 	// Run muscato_prep_reads
 	dc := wf.NewProc("mpr", fmt.Sprintf("muscato_prep_reads %s > {os:mpr_out}", configFilePath))
@@ -150,24 +145,13 @@ func prepReads() {
 	sr.In("insort").From(dc.Out("mpr_out"))
 	mu.In("inuniq").From(sr.Out("outsort"))
 
-	wf.Run()
-
 	logger.Print("prepReads done")
 }
 
 func windowReads() {
 	logger.Print("starting windowReads")
 	logger.Printf("Running command: 'muscato_window_reads %s'\n", configFilePath)
-	cmd := exec.Command("muscato_window_reads", configFilePath)
-	cmd.Env = os.Environ()
-	cmd.Stderr = os.Stderr
-	err := cmd.Run()
-	if err != nil {
-		msg := "Error running muscato_window_reads, see log files for details.\n"
-		os.Stderr.WriteString(msg)
-		log.Fatal(err)
-	}
-
+	wf.NewProc("mwr", fmt.Sprintf("muscato_window_reads %s", configFilePath))
 	logger.Print("windowReads done")
 }
 
@@ -178,28 +162,28 @@ func sortWindows() {
 	for k := 0; k < len(config.Windows); k++ {
 
 		logger.Printf("sortWindows %d...", k)
-		wf := scipipe.NewWorkflow("sw", 4)
 
 		// Decompress matches
 		fn := path.Join(config.TempDir, fmt.Sprintf("win_%d.txt.sz", k))
-		dc := wf.NewProc("dc", fmt.Sprintf("sztool -d %s > {os:dx}", fn))
+		dw := fmt.Sprintf("dec_win_%d", k)
+		dc := wf.NewProc(dw, fmt.Sprintf("sztool -d %s > {os:dx}", fn))
 		dc.SetOut("dx", path.Join(pipedir, fmt.Sprintf("sw_dc_%d", k)))
 
 		// Sort the matches
 		sc := fmt.Sprintf("sort %s %s -k1 %s {i:in} > {os:sort}", sortmem, sortpar, sortTmpFlag)
-		sm := wf.NewProc("sm", sc)
+		smn := fmt.Sprintf("swin_%d", k)
+		sm := wf.NewProc(smn, sc)
 		logger.Print(sc)
 		sm.SetOut("sort", path.Join(pipedir, fmt.Sprintf("sw_sort_%d", k)))
 
 		// Compress results
 		fn = strings.Replace(fn, ".txt.sz", "_sorted.txt.sz", 1)
-		rc := wf.NewProc("rc", fmt.Sprintf("sztool -c {i:ins} %s", fn))
+		rwn := fmt.Sprintf("rec_win_%d", k)
+		rc := wf.NewProc(rwn, fmt.Sprintf("sztool -c {i:ins} %s", fn))
 
 		// Connect the network
 		sm.In("in").From(dc.Out("dx"))
 		rc.In("ins").From(sm.Out("sort"))
-
-		wf.Run()
 
 		logger.Print("done\n")
 	}
@@ -210,15 +194,7 @@ func sortWindows() {
 func screen() {
 	logger.Print("Starting screening")
 	logger.Printf("Running command: 'muscato_screen %s'\n", configFilePath)
-	cmd := exec.Command("muscato_screen", configFilePath)
-	cmd.Env = os.Environ()
-	cmd.Stderr = os.Stderr
-	err := cmd.Run()
-	if err != nil {
-		msg := "Error running muscato_screen, see log files for details.\n"
-		os.Stderr.WriteString(msg)
-		log.Fatal(err)
-	}
+	wf.NewProc("mscr", fmt.Sprintf("muscato_screen %s", configFilePath))
 	logger.Print("Screening done")
 }
 
@@ -229,28 +205,28 @@ func sortBloom() {
 	for k := range config.Windows {
 
 		logger.Printf("sortBloom %d...", k)
-		wf := scipipe.NewWorkflow("sb", 4)
 
 		// Decompress matches
 		fn := path.Join(config.TempDir, fmt.Sprintf("bmatch_%d.txt.sz", k))
-		dc := wf.NewProc("dc", fmt.Sprintf("sztool -d %s > {os:dx}", fn))
+		dcn := fmt.Sprintf("dcb_%d", k)
+		dc := wf.NewProc(dcn, fmt.Sprintf("sztool -d %s > {os:dx}", fn))
 		dc.SetOut("dx", path.Join(pipedir, fmt.Sprintf("sb_dc_%d", k)))
 
 		// Sort the matches
 		c := fmt.Sprintf("sort %s %s -k1 %s {i:in} > {os:sort}", sortmem, sortpar, sortTmpFlag)
 		logger.Print(c)
-		sm := wf.NewProc("sm", c)
+		smn := fmt.Sprintf("sb_%d", k)
+		sm := wf.NewProc(smn, c)
 		sm.SetOut("sort", path.Join(pipedir, fmt.Sprintf("sb_sort_%d", k)))
 
 		// Compress results
 		fn = path.Join(config.TempDir, fmt.Sprintf("smatch_%d.txt.sz", k))
-		rc := wf.NewProc("rc", fmt.Sprintf("sztool -c {i:ins} %s", fn))
+		rcn := fmt.Sprintf("rc_%d", k)
+		rc := wf.NewProc(rcn, fmt.Sprintf("sztool -c {i:ins} %s", fn))
 
 		// Connect the network
 		sm.In("in").From(dc.Out("dx"))
 		rc.In("ins").From(sm.Out("sort"))
-
-		wf.Run()
 
 		logger.Print("done")
 	}
@@ -261,213 +237,20 @@ func sortBloom() {
 func confirm() {
 
 	logger.Print("Starting match confirmation")
-	fp := 0
-	for {
-		nproc := config.MaxConfirmProcs
-		if nproc > len(config.Windows)-fp {
-			nproc = len(config.Windows) - fp
-		}
-		if nproc == 0 {
-			break
-		}
-
-		var cmds []*exec.Cmd
-		for k := fp; k < fp+nproc; k++ {
-			logger.Print("Starting a round of confirmation processes")
-			logger.Printf("Running command: 'muscato_confirm %s %d'\n", configFilePath, k)
-			cmd := exec.Command("muscato_confirm", configFilePath, fmt.Sprintf("%d", k))
-			cmd.Env = os.Environ()
-			cmd.Stderr = os.Stderr
-			err := cmd.Start()
-			if err != nil {
-				msg := "Error running muscato_confirm, see log files for details.\n"
-				os.Stderr.WriteString(msg)
-				log.Fatal(err)
-			}
-			cmds = append(cmds, cmd)
-		}
-
-		for _, cmd := range cmds {
-			err := cmd.Wait()
-			if err != nil {
-				msg := "Error running muscato_confirm, see log files for details.\n"
-				os.Stderr.WriteString(msg)
-				log.Fatal(err)
-			}
-		}
-		fp += nproc
+	for k := 0; k < len(config.Windows); k++ {
+		logger.Printf("Running command: 'muscato_confirm %s %d'\n", configFilePath, k)
+		crn := fmt.Sprintf("mc_%d", k)
+		wf.NewProc(crn, fmt.Sprintf("muscato_confirm %s %d", configFilePath, k))
 	}
 
 	logger.Print("Match confirmation done")
 }
 
-// writebest accepts a set of lines (lines), which have also been
-// broken into fields (bfr).  Every line represents a candidate match.
-// The matches with at most mmtol more matches than the best match are
-// written to the io writer (wtr).  ibuf is provided workspace.
-func writebest(lines []string, bfr [][]string, wtr io.Writer, ibuf []int, mmtol int) ([]int, error) {
-
-	// Find the best fit, determine the number of mismatches for each sequence.
-	ibuf = ibuf[0:0]
-	best := -1
-	for _, x := range bfr {
-		y, err := strconv.Atoi(x[3]) // 3 is position of nmiss
-		if err != nil {
-			return nil, err
-		}
-		if best == -1 || y < best {
-			best = y
-		}
-		ibuf = append(ibuf, y)
-	}
-
-	// Output the sequences with acceptable number of mismatches.
-	for i, x := range lines {
-		if ibuf[i] <= best+mmtol {
-			_, err := wtr.Write([]byte(x))
-			if err != nil {
-				return nil, err
-			}
-			_, err = wtr.Write([]byte("\n"))
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	return ibuf, nil
-}
-
 func combineWindows() {
 
-	logger.Print("starting combineWindows")
-
-	mmtol := config.MMTol
-
-	// Pipe everything into one sort/unique
-	var c0 *exec.Cmd
-	if sortTmpFlag != "" {
-		c0 = exec.Command("sort", sortmem, sortpar, sortTmpFlag, "-u", "-")
-	} else {
-		c0 = exec.Command("sort", sortmem, sortpar, "-u", "-")
-	}
-	c0.Env = os.Environ()
-	c0.Stderr = os.Stderr
-	cmds := []*exec.Cmd{c0}
-
-	// The sorted results go to disk
-	outname := path.Join(config.TempDir, "matches.txt.sz")
-	out, err := os.Create(outname)
-	if err != nil {
-		msg := "Error in combineWindows, see log files for details.\n"
-		os.Stderr.WriteString(msg)
-		log.Fatal(err)
-	}
-	defer out.Close()
-	wtr := snappy.NewBufferedWriter(out)
-	defer wtr.Close()
-
-	// TODO: Add Bloom filter here to screen out duplicates
-	var fd []io.Reader
-	for j := 0; j < len(config.Windows); j++ {
-		f := fmt.Sprintf("rmatch_%d.txt.sz", j)
-		fname := path.Join(config.TempDir, f)
-		c := exec.Command("sztool", "-d", fname)
-		c.Env = os.Environ()
-		c.Stderr = os.Stderr
-		cmds = append(cmds, c)
-		p, err := c.StdoutPipe()
-		if err != nil {
-			msg := "Error in combineWindows, see log files for details.\n"
-			os.Stderr.WriteString(msg)
-			log.Fatal(err)
-		}
-		fd = append(fd, p)
-	}
-	c0.Stdin = io.MultiReader(fd...)
-	da, err := c0.StdoutPipe()
-	if err != nil {
-		msg := "Error in combineWindows, see log files for details.\n"
-		os.Stderr.WriteString(msg)
-		log.Fatal(err)
-	}
-
-	for _, c := range cmds {
-		err := c.Start()
-		if err != nil {
-			msg := "Error in combineWindows, see log files for details.\n"
-			os.Stderr.WriteString(msg)
-			log.Fatal(err)
-		}
-	}
-
-	// Taking all matches for the same read, retain only those
-	// with nmiss equal to at most one greater than the lowest
-	// nmiss.
-	sem := make(chan bool, 1)
-	sem <- true
-	// DEBUG used to be go func()
-	func() {
-		scanner := bufio.NewScanner(da)
-		var lines []string
-		var fields [][]string
-		var ibuf []int
-		var current string
-		for scanner.Scan() {
-			line := scanner.Text()
-			field := strings.Fields(line)
-
-			// Add to the current block.
-			if current == "" || field[0] == current {
-				lines = append(lines, line)
-				fields = append(fields, field)
-				current = field[0]
-				continue
-			}
-
-			// Process a block
-			ibuf, err = writebest(lines, fields, wtr, ibuf, mmtol)
-			if err != nil {
-				msg := "Error in combineWindows, see log file for details.\n"
-				os.Stderr.WriteString(msg)
-				log.Fatal(err)
-			}
-			lines = lines[0:0]
-			lines = append(lines, line)
-			fields = fields[0:0]
-			fields = append(fields, field)
-			current = field[0]
-		}
-
-		if err := scanner.Err(); err == nil {
-			// Process the final block if possible
-			_, err := writebest(lines, fields, wtr, ibuf, mmtol)
-			if err != nil {
-				msg := "Error in combineWindows, see log file for details.\n"
-				os.Stderr.WriteString(msg)
-				log.Fatal(err)
-			}
-		} else {
-			// Should never get here, but just in case log
-			// the error but don't try to process the
-			// remaining lines which may be corrupted.
-			logger.Printf("%v", err)
-		}
-
-		<-sem
-	}()
-
-	// OK to call Wait, done reading.
-	for _, c := range cmds {
-		err := c.Wait()
-		if err != nil {
-			msg := "Error in combineWindows, see log file for details.\n"
-			os.Stderr.WriteString(msg)
-			log.Fatal(err)
-		}
-	}
-	sem <- true
-
+	logger.Print("Starting combineWindows")
+	logger.Printf("Running command: 'muscato_combine_windows %s'\n", configFilePath)
+	wf.NewProc("cwn", fmt.Sprintf("muscato_combine_windows %s", configFilePath))
 	logger.Print("combineWindows done")
 }
 
@@ -534,7 +317,6 @@ func sortByGeneId() {
 func joinGeneNames() {
 
 	logger.Print("starting joinGeneNames")
-	wf := scipipe.NewWorkflow("jgn", 5)
 
 	// Decompress matches
 	ma := wf.NewProc("ma", fmt.Sprintf("sztool -d %s > {os:ma}", path.Join(config.TempDir, "matches_sg.txt.sz")))
@@ -560,15 +342,12 @@ func joinGeneNames() {
 	ct.In("jy").From(jo.Out("jx"))
 	sz.In("zi").From(ct.Out("co"))
 
-	wf.Run()
-
 	logger.Print("joinGeneNames done")
 }
 
 func joinReadNames() {
 
 	logger.Print("starting joinReadNames")
-	wf := scipipe.NewWorkflow("jrn", 4)
 
 	// The workflow hangs if the results file already exists, so
 	// remove it.
@@ -610,8 +389,6 @@ func joinReadNames() {
 	sm.In("in").From(ma.Out("ma"))
 	jo.In("srx").From(sm.Out("sort"))
 	jo.In("rdx").From(rd.Out("rd"))
-
-	wf.Run()
 
 	logger.Print("joinReadNames done")
 }
@@ -1100,7 +877,6 @@ func readStats() {
 
 func run() {
 	prepReads()
-	perfInfo()
 	windowReads()
 	sortWindows()
 	screen()
@@ -1110,9 +886,6 @@ func run() {
 	sortByGeneId()
 	joinGeneNames()
 	joinReadNames()
-	writeNonMatch()
-	readStats()
-	geneStats()
 }
 
 func cleanPipes() {
@@ -1153,6 +926,7 @@ func perfInfo() {
 		os.Stderr.WriteString(msg)
 		log.Fatal(err)
 	}
+
 	dec := json.NewDecoder(fid)
 	err = dec.Decode(&inf)
 	if err != nil {
@@ -1169,6 +943,8 @@ func perfInfo() {
 
 func main() {
 
+	wf = scipipe.NewWorkflow("muscato", 4)
+
 	defer cleanPipes()
 	defer cleanTmp()
 
@@ -1184,6 +960,12 @@ func main() {
 	logger.Printf("Storing log files in %s", config.LogDir)
 
 	run()
+	wf.Run()
+
+	perfInfo()
+	writeNonMatch()
+	readStats()
+	geneStats()
 
 	logger.Print("All done, exit after cleanup")
 }

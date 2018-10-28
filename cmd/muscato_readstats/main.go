@@ -1,3 +1,5 @@
+// Copyright 2017, Kerby Shedden and the Muscato contributors.
+//
 // readStats calculates statistics for each read, using a results
 // datafile that is sorted by read.
 

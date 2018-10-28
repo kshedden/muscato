@@ -1,10 +1,14 @@
 // Copyright 2017, Kerby Shedden and the Muscato contributors.
 
 /*
-Generate simple data sets for testing.  Gene i contains an exact
-copy of read i, starting at position i % 10.  If there are more
-genes than reads, then the additional genes do not have any
-matches beyond those occuring by chance.
+Generate simple data sets for testing.
+
+In the first half of the genes, gene i contains an exact copy of read
+i % 10, starting at position i % 10. The remainder of these gene sequences
+are random.
+
+The second half of the gene sequences are random and should contain
+few or no matches.
 */
 
 package main
@@ -101,10 +105,10 @@ func generateGenes() {
 	for i := 0; i < numGene; i++ {
 		w.WriteString(fmt.Sprintf("gene_%d\t", i))
 
-		if i < len(reads) {
+		if i < numGene/2 {
 			j := i % 10
 			writeRand(w, j)
-			w.WriteString(reads[i])
+			w.WriteString(reads[j])
 			writeRand(w, geneLen-(readLen+j))
 		} else {
 			writeRand(w, geneLen)

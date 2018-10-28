@@ -1,3 +1,5 @@
+// Copyright 2017, Kerby Shedden and the Muscato contributors.
+
 package main
 
 import (

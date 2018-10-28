@@ -170,8 +170,24 @@ func setupLog() {
 	logger = log.New(fid, "", log.Ltime)
 }
 
+func clean(tests []Test) {
+
+	for _, t := range tests {
+		for _, fp := range t.Files {
+			fn := path.Join(t.Base, fp[0])
+			if err := os.Remove(fn); err != nil {
+				if !os.IsNotExist(err) {
+					panic(err)
+				}
+			}
+		}
+	}
+}
+
 func main() {
+
 	setupLog()
 	tests := getTests()
+	clean(tests)
 	run(tests)
 }

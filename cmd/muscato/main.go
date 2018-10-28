@@ -78,9 +78,6 @@ import (
 var (
 	configFilePath string
 
-	// REMOVE LATER
-	out io.Writer
-
 	config   *utils.Config
 	basename string
 
@@ -514,6 +511,17 @@ func joinReadNames() {
 
 	fn := path.Join(config.TempDir, "reads_sorted.txt.sz")
 	gn := path.Join(config.TempDir, "matches_sn.txt.sz")
+
+	if _, err := os.Stat(fn); os.IsNotExist(err) {
+		err := fmt.Errorf("reads_sorted.txt.sz does not exist")
+		panic(err)
+	}
+
+	if _, err := os.Stat(gn); os.IsNotExist(err) {
+		err := fmt.Errorf("matches_sn.txt.sz does not exist")
+		panic(err)
+	}
+
 	c1 := fmt.Sprintf("<(sort -k1 %s %s %s <(sztool -d %s))", sortmem, sortpar, sortTmpFlag, gn)
 	c2 := fmt.Sprintf("<(sztool -d %s)", fn)
 	bs := fmt.Sprintf("join -1 1 -2 1 -t'\t' %s %s > %s", c1, c2, config.ResultsFileName)
@@ -866,11 +874,10 @@ func main() {
 	sortBloom()
 	confirm()
 	combineWindows()
-
-	writeNonMatch()
-	genReadStats()
-	geneStats()
 	sortByGeneId()
 	joinGeneNames()
 	joinReadNames()
+	writeNonMatch()
+	genReadStats()
+	geneStats()
 }

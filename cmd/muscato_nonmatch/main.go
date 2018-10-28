@@ -41,7 +41,7 @@ func main() {
 	inf, err := os.Open(config.ResultsFileName)
 	if err != nil {
 		if os.IsNotExist(err) {
-			msg := fmt.Sprintf("Cannot open file %s.", config.ResultsFileName)
+			msg := fmt.Sprintf("Cannot open file %s\n", config.ResultsFileName)
 			os.Stderr.WriteString(msg)
 			os.Exit(1)
 		}

@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path"
@@ -45,11 +46,16 @@ func main() {
 
 	setupLog()
 
-	fid, err := os.Open(os.Args[2])
-	if err != nil {
-		log.Fatal(err)
+	var fid io.ReadCloser
+	if os.Args[2] == "-" {
+		fid = os.Stdin
+	} else {
+		fid, err := os.Open(os.Args[2])
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer fid.Close()
 	}
-	defer fid.Close()
 
 	rdr := bufio.NewReader(fid)
 	scanner := bufio.NewScanner(rdr)

@@ -4,14 +4,21 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 )
 
 func main() {
 
-	fid, err := os.Open(os.Args[1])
-	if err != nil {
-		panic(err)
+	var fid io.ReadCloser
+	if os.Args[1] == "-" {
+		fid = os.Stdin
+	} else {
+		var err error
+		fid, err = os.Open(os.Args[1])
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	scanner := bufio.NewScanner(fid)

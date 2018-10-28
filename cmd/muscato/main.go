@@ -59,36 +59,30 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
-	"math"
 	"os"
 	"os/exec"
 	"path"
 	"strconv"
 	"strings"
 
-	"github.com/golang/snappy"
 	"github.com/google/uuid"
 	"github.com/kshedden/muscato/utils"
-	"github.com/scipipe/scipipe"
-	"github.com/willf/bloom"
+	"golang.org/x/sys/unix"
 )
 
 var (
 	configFilePath string
 
-	wf *scipipe.Workflow
+	// REMOVE LATER
+	out io.Writer
 
 	config   *utils.Config
 	basename string
-	pipedir  string
-	logger   *log.Logger
 
 	// Flag for setting the tmp file location for sorting.
 	sortTmpFlag string
@@ -100,10 +94,20 @@ var (
 // geneStats
 func geneStats() {
 
-	c := fmt.Sprintf("sort %s %s %s %s -k 5 > {os:outsort}", sortmem, sortpar, sortTmpFlag, config.ResultsFileName)
-	logger.Print(c)
-	gsrt := wf.NewProc("gsrt", c)
-	gsrt.SetOut("outsort", path.Join(pipedir, "gs_outsort"))
+	io.WriteString(os.Stderr, "Generating gene statistics...\n")
+
+	pr1, pw1, err := os.Pipe()
+	if err != nil {
+		panic(err)
+	}
+
+	args := []string{sortmem, sortpar, "-k5"}
+	if sortTmpFlag != "" {
+		args = append(args, sortTmpFlag)
+	}
+	args = append(args, config.ResultsFileName)
+	cmd1 := exec.Command("sort", args...)
+	cmd1.Stdout = pw1
 
 	var outfile string
 	ext := path.Ext(config.ResultsFileName)
@@ -113,295 +117,420 @@ func geneStats() {
 	} else {
 		outfile = config.ResultsFileName + "_genestats"
 	}
-	os.Remove(outfile)
 
-	gsta := wf.NewProc("gst", "muscato_genestats {i:insort} > {o:out}")
-	gsta.SetOut("out", outfile)
-	gsta.In("insort").From(gsrt.Out("outsort"))
+	cmd2 := exec.Command("muscato_genestats", "-")
+	cmd2.Stdin = pr1
+	fid, err := os.Create(outfile)
+	if err != nil {
+		panic(err)
+	}
+	defer fid.Close()
+	cmd2.Stdout = fid
+
+	for _, c := range []*exec.Cmd{cmd1, cmd2} {
+		c.Stderr = os.Stderr
+		if err := c.Start(); err != nil {
+			panic(err)
+		}
+	}
+
+	if err := cmd1.Wait(); err != nil {
+		panic(err)
+	}
+
+	pw1.Close()
+
+	if err := cmd2.Wait(); err != nil {
+		panic(err)
+	}
+}
+
+func mkfifo(pa string) *os.File {
+
+	err := unix.Mkfifo(pa, 0600)
+	if err != nil {
+		panic(err)
+	}
+
+	file, err := os.OpenFile(pa, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
+	if err != nil {
+		panic(err)
+	}
+
+	return file
 }
 
 func prepReads() {
 
-	logger.Print("Starting prepReads")
+	io.WriteString(os.Stderr, "Preparing reads...\n")
+
+	pr1, pw1, err := os.Pipe()
+	if err != nil {
+		panic(err)
+	}
+
+	pr2, pw2, err := os.Pipe()
+	if err != nil {
+		panic(err)
+	}
 
 	// Run muscato_prep_reads
-	dc := wf.NewProc("mpr", fmt.Sprintf("muscato_prep_reads %s > {os:mpr_out}", configFilePath))
-	dc.SetOut("mpr_out", path.Join(pipedir, "pr_mpr"))
+	cmd1 := exec.Command("muscato_prep_reads", configFilePath)
+	cmd1.Stdout = pw1
 
 	// Sort the output of muscato_prep_reads
-	c := fmt.Sprintf("sort %s %s %s {i:insort} > {os:outsort}", sortmem, sortpar, sortTmpFlag)
-	logger.Print(c)
-	sr := wf.NewProc("sr", c)
-	sr.SetOut("outsort", path.Join(pipedir, "pr_outsort"))
+	args := []string{sortmem, sortpar}
+	if sortTmpFlag != "" {
+		args = append(args, sortTmpFlag)
+	}
+	cmd2 := exec.Command("sort", args...)
+	cmd2.Stdin = pr1
+	cmd2.Stdout = pw2
 
 	// Uniqify and count duplicates
-	c = fmt.Sprintf("muscato_uniqify %s {i:inuniq} > {o:outfinal}", configFilePath)
-	logger.Print(c)
-	mu := wf.NewProc("mu", c)
-	outname := path.Join(config.TempDir, "reads_sorted.txt.sz")
-	mu.SetOut("outfinal", outname)
+	outfinal := path.Join(config.TempDir, "reads_sorted.txt.sz")
+	cmd3 := exec.Command("muscato_uniqify", configFilePath, "-")
+	cmd3.Stdin = pr2
+	fid, err := os.Create(outfinal)
+	if err != nil {
+		panic(err)
+	}
+	defer fid.Close()
+	cmd3.Stdout = fid
 
-	// Connect the network
-	sr.In("insort").From(dc.Out("mpr_out"))
-	mu.In("inuniq").From(sr.Out("outsort"))
+	for _, cmd := range []*exec.Cmd{cmd1, cmd2, cmd3} {
+		cmd.Stderr = os.Stderr
+		if err := cmd.Start(); err != nil {
+			panic(err)
+		}
+	}
 
-	logger.Print("prepReads done")
+	if err := cmd1.Wait(); err != nil {
+		panic(err)
+	}
+
+	pw1.Close()
+
+	if err := cmd2.Wait(); err != nil {
+		panic(err)
+	}
+
+	pw2.Close()
+
+	if err := cmd3.Wait(); err != nil {
+		panic(err)
+	}
 }
 
 func windowReads() {
-	logger.Print("starting windowReads")
-	logger.Printf("Running command: 'muscato_window_reads %s'\n", configFilePath)
-	wf.NewProc("mwr", fmt.Sprintf("muscato_window_reads %s", configFilePath))
-	logger.Print("windowReads done")
+
+	io.WriteString(os.Stderr, "Windowing reads...\n")
+
+	// Run muscato_prep_reads
+	cmd := exec.Command("muscato_window_reads", configFilePath)
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		panic(err)
+	}
 }
 
 func sortWindows() {
 
-	logger.Print("starting sortWindows")
-
 	for k := 0; k < len(config.Windows); k++ {
 
-		logger.Printf("sortWindows %d...", k)
+		io.WriteString(os.Stderr, fmt.Sprintf("Sorting windows %d...\n", k))
+
+		pr1, pw1, err := os.Pipe()
+		if err != nil {
+			panic(err)
+		}
+
+		pr2, pw2, err := os.Pipe()
+		if err != nil {
+			panic(err)
+		}
 
 		// Decompress matches
 		fn := path.Join(config.TempDir, fmt.Sprintf("win_%d.txt.sz", k))
-		dw := fmt.Sprintf("dec_win_%d", k)
-		dc := wf.NewProc(dw, fmt.Sprintf("sztool -d %s > {os:dx}", fn))
-		dc.SetOut("dx", path.Join(pipedir, fmt.Sprintf("sw_dc_%d", k)))
+		cmd1 := exec.Command("sztool", "-d", fn)
+		cmd1.Stdout = pw1
 
 		// Sort the matches
-		sc := fmt.Sprintf("sort %s %s -k1 %s {i:in} > {os:sort}", sortmem, sortpar, sortTmpFlag)
-		smn := fmt.Sprintf("swin_%d", k)
-		sm := wf.NewProc(smn, sc)
-		logger.Print(sc)
-		sm.SetOut("sort", path.Join(pipedir, fmt.Sprintf("sw_sort_%d", k)))
+		args := []string{sortmem, sortpar, "-k1"}
+		if sortTmpFlag != "" {
+			args = append(args, sortTmpFlag)
+		}
+		args = append(args, "-")
+		cmd2 := exec.Command("sort", args...)
+		cmd2.Stdin = pr1
+		cmd2.Stdout = pw2
 
 		// Compress results
 		fn = strings.Replace(fn, ".txt.sz", "_sorted.txt.sz", 1)
-		rwn := fmt.Sprintf("rec_win_%d", k)
-		rc := wf.NewProc(rwn, fmt.Sprintf("sztool -c {i:ins} %s", fn))
+		cmd3 := exec.Command("sztool", "-c", "-", fn)
+		cmd3.Stdin = pr2
 
-		// Connect the network
-		sm.In("in").From(dc.Out("dx"))
-		rc.In("ins").From(sm.Out("sort"))
+		for _, cmd := range []*exec.Cmd{cmd1, cmd2, cmd3} {
+			cmd.Stderr = os.Stderr
+			if err := cmd.Start(); err != nil {
+				panic(err)
+			}
+		}
 
-		logger.Print("done\n")
+		if err := cmd1.Wait(); err != nil {
+			panic(err)
+		}
+
+		pw1.Close()
+
+		if err := cmd2.Wait(); err != nil {
+			panic(err)
+		}
+
+		pw2.Close()
+
+		if err := cmd3.Wait(); err != nil {
+			panic(err)
+		}
 	}
-
-	logger.Print("sortWindows done")
 }
 
 func screen() {
-	logger.Print("Starting screening")
-	logger.Printf("Running command: 'muscato_screen %s'\n", configFilePath)
-	wf.NewProc("mscr", fmt.Sprintf("muscato_screen %s", configFilePath))
-	logger.Print("Screening done")
+
+	io.WriteString(os.Stderr, "Screening...\n")
+
+	cmd := exec.Command("muscato_screen", configFilePath)
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		panic(err)
+	}
 }
 
 func sortBloom() {
 
-	logger.Print("Starting sortBloom")
-
 	for k := range config.Windows {
 
-		logger.Printf("sortBloom %d...", k)
+		pr1, pw1, err := os.Pipe()
+		if err != nil {
+			panic(err)
+		}
+
+		pr2, pw2, err := os.Pipe()
+		if err != nil {
+			panic(err)
+		}
+
+		io.WriteString(os.Stderr, fmt.Sprintf("Sorting Bloom %d...\n", k))
 
 		// Decompress matches
 		fn := path.Join(config.TempDir, fmt.Sprintf("bmatch_%d.txt.sz", k))
-		dcn := fmt.Sprintf("dcb_%d", k)
-		dc := wf.NewProc(dcn, fmt.Sprintf("sztool -d %s > {os:dx}", fn))
-		dc.SetOut("dx", path.Join(pipedir, fmt.Sprintf("sb_dc_%d", k)))
+		cmd1 := exec.Command("sztool", "-d", fn)
+		cmd1.Stdout = pw1
 
 		// Sort the matches
-		c := fmt.Sprintf("sort %s %s -k1 %s {i:in} > {os:sort}", sortmem, sortpar, sortTmpFlag)
-		logger.Print(c)
-		smn := fmt.Sprintf("sb_%d", k)
-		sm := wf.NewProc(smn, c)
-		sm.SetOut("sort", path.Join(pipedir, fmt.Sprintf("sb_sort_%d", k)))
+		args := []string{sortmem, sortpar, "-k1"}
+		if sortTmpFlag != "" {
+			args = append(args, sortTmpFlag)
+		}
+		args = append(args, "-")
+		cmd2 := exec.Command("sort", args...)
+		cmd2.Stdin = pr1
+		cmd2.Stdout = pw2
 
 		// Compress results
 		fn = path.Join(config.TempDir, fmt.Sprintf("smatch_%d.txt.sz", k))
-		rcn := fmt.Sprintf("rc_%d", k)
-		rc := wf.NewProc(rcn, fmt.Sprintf("sztool -c {i:ins} %s", fn))
+		cmd3 := exec.Command("sztool", "-c", "-", fn)
+		cmd3.Stdin = pr2
 
-		// Connect the network
-		sm.In("in").From(dc.Out("dx"))
-		rc.In("ins").From(sm.Out("sort"))
+		for _, cmd := range []*exec.Cmd{cmd1, cmd2, cmd3} {
+			cmd.Stderr = os.Stderr
+			if err := cmd.Start(); err != nil {
+				panic(err)
+			}
+		}
 
-		logger.Print("done")
+		if err := cmd1.Wait(); err != nil {
+			panic(err)
+		}
+
+		pw1.Close()
+
+		if err := cmd2.Wait(); err != nil {
+			panic(err)
+		}
+
+		pw2.Close()
+
+		if err := cmd3.Wait(); err != nil {
+			panic(err)
+		}
 	}
-
-	logger.Print("sortBloom done")
 }
 
 func confirm() {
 
-	logger.Print("Starting match confirmation")
-	for k := 0; k < len(config.Windows); k++ {
-		logger.Printf("Running command: 'muscato_confirm %s %d'\n", configFilePath, k)
-		crn := fmt.Sprintf("mc_%d", k)
-		wf.NewProc(crn, fmt.Sprintf("muscato_confirm %s %d", configFilePath, k))
-	}
+	io.WriteString(os.Stderr, "Confirming...\n")
 
-	logger.Print("Match confirmation done")
+	for k := 0; k < len(config.Windows); k++ {
+		cmd := exec.Command("muscato_confirm", configFilePath, fmt.Sprintf("%d", k))
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			panic(err)
+		}
+	}
 }
 
 func combineWindows() {
 
-	logger.Print("Starting combineWindows")
-	logger.Printf("Running command: 'muscato_combine_windows %s'\n", configFilePath)
-	wf.NewProc("cwn", fmt.Sprintf("muscato_combine_windows %s", configFilePath))
-	logger.Print("combineWindows done")
+	io.WriteString(os.Stderr, "Combining windows...\n")
+
+	cmd := exec.Command("muscato_combine_windows", configFilePath)
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		panic(err)
+	}
 }
 
 func sortByGeneId() {
 
-	logger.Print("starting sortByGeneid")
+	io.WriteString(os.Stderr, "Sorting by gene id...\n")
+
 	inname := path.Join(config.TempDir, "matches.txt.sz")
 	outname := path.Join(config.TempDir, "matches_sg.txt.sz")
 
+	pr1, pw1, err := os.Pipe()
+	if err != nil {
+		panic(err)
+	}
+
+	pr2, pw2, err := os.Pipe()
+	if err != nil {
+		panic(err)
+	}
+
 	// Sort by gene number
 	cmd1 := exec.Command("sztool", "-d", inname)
-	cmd1.Env = os.Environ()
-	cmd1.Stderr = os.Stderr
+	cmd1.Stdout = pw1
+
 	// k5 is position of gene id
-	var cmd2 *exec.Cmd
+	args := []string{sortmem, sortpar, "-k5"}
 	if sortTmpFlag != "" {
-		cmd2 = exec.Command("sort", sortmem, sortpar, sortTmpFlag, "-k5", "-")
-	} else {
-		cmd2 = exec.Command("sort", sortmem, sortpar, "-k5", "-")
+		args = append(args, sortTmpFlag)
 	}
-	cmd2.Env = os.Environ()
-	cmd2.Stderr = os.Stderr
-	var err error
-	cmd2.Stdin, err = cmd1.StdoutPipe()
-	if err != nil {
-		msg := "Error in sortByGeneId, see log files for details.\n"
-		os.Stderr.WriteString(msg)
-		log.Fatal(err)
-	}
+	args = append(args, "-")
+	cmd2 := exec.Command("sort", args...)
+	cmd2.Stdin = pr1
+	cmd2.Stdout = pw2
+
+	// Compress the results
 	cmd3 := exec.Command("sztool", "-c", "-", outname)
-	cmd3.Env = os.Environ()
-	cmd3.Stderr = os.Stderr
-	cmd3.Stdin, err = cmd2.StdoutPipe()
-	if err != nil {
-		msg := "Error in sortByGeneId, see log files for details.\n"
-		os.Stderr.WriteString(msg)
-		log.Fatal(err)
-	}
+	cmd3.Stdin = pr2
 
-	// Order matters
-	cmds := []*exec.Cmd{cmd3, cmd2, cmd1}
-	for _, c := range cmds {
-		err := c.Start()
-		if err != nil {
-			msg := "Error in sortByGeneId, see log files for details.\n"
-			os.Stderr.WriteString(msg)
-			log.Fatal(err)
+	for _, cmd := range []*exec.Cmd{cmd1, cmd2, cmd3} {
+		cmd.Stderr = os.Stderr
+		if err := cmd.Start(); err != nil {
+			panic(err)
 		}
 	}
 
-	// Call Wait from end to beginning of chained commands
-	for _, c := range cmds {
-		err := c.Wait()
-		if err != nil {
-			msg := "Error in sortByGeneId, see log files for details.\n"
-			os.Stderr.WriteString(msg)
-			log.Fatal(err)
-		}
+	if err := cmd1.Wait(); err != nil {
+		panic(err)
 	}
 
-	logger.Print("sortbyGeneId done")
+	pw1.Close()
+
+	if err := cmd2.Wait(); err != nil {
+		panic(err)
+	}
+
+	pw2.Close()
+
+	if err := cmd3.Wait(); err != nil {
+		panic(err)
+	}
 }
 
 func joinGeneNames() {
 
-	logger.Print("starting joinGeneNames")
+	io.WriteString(os.Stderr, "Joining gene names...\n")
 
-	// Decompress matches
-	ma := wf.NewProc("ma", fmt.Sprintf("sztool -d %s > {os:ma}", path.Join(config.TempDir, "matches_sg.txt.sz")))
-	ma.SetOut("ma", path.Join(pipedir, "jgn_ma.txt"))
+	pr1, pw1, err := os.Pipe()
+	if err != nil {
+		panic(err)
+	}
 
-	// Decompress gene ids
-	gn := wf.NewProc("gn", fmt.Sprintf("sztool -d %s > {os:gn}", config.GeneIdFileName))
-	gn.SetOut("gn", path.Join(pipedir, "jgn_gn.txt"))
+	pr2, pw2, err := os.Pipe()
+	if err != nil {
+		panic(err)
+	}
 
 	// Join genes and matches
-	jo := wf.NewProc("jo", "join -1 5 -2 1 -t'\t' {i:mx} {i:gx} > {os:jx}")
-	jo.SetOut("jx", path.Join(pipedir, "jgn_joined.txt"))
+	fn := path.Join(config.TempDir, "matches_sg.txt.sz")
+	bs := fmt.Sprintf("join -1 5 -2 1 -t $'\t' <(sztool -d %s) <(sztool -d %s)\n", fn, config.GeneIdFileName)
+	fid, err := os.Create("bs.sh")
+	io.WriteString(fid, bs)
+	fid.Close()
+	cmd1 := exec.Command("/bin/bash", "bs.sh")
+	cmd1.Stdout = pw1
 
 	// Cut out unwanted column
-	ct := wf.NewProc("ct", "cut -d'\t' -f 1 --complement {i:jy} > {os:co}")
-	ct.SetOut("co", path.Join(pipedir, "jgn_cut.txt"))
+	// The first argument after cur is -d(tab)
+	cmd2 := exec.Command("cut", "-d	", "-f1", "--complement", "-")
+	cmd2.Stdin = pr1
+	cmd2.Stdout = pw2
 
 	// Compress the result
-	sz := wf.NewProc("sz", fmt.Sprintf("sztool -c {i:zi} %s", path.Join(config.TempDir, "matches_sn.txt.sz")))
+	cmd3 := exec.Command("sztool", "-c", "-", path.Join(config.TempDir, "matches_sn.txt.sz"))
+	cmd3.Stdin = pr2
 
-	jo.In("mx").From(ma.Out("ma"))
-	jo.In("gx").From(gn.Out("gn"))
-	ct.In("jy").From(jo.Out("jx"))
-	sz.In("zi").From(ct.Out("co"))
+	for _, cmd := range []*exec.Cmd{cmd1, cmd2, cmd3} {
+		cmd.Stderr = os.Stderr
+		if err := cmd.Start(); err != nil {
+			panic(err)
+		}
+	}
 
-	logger.Print("joinGeneNames done")
+	if err := cmd1.Wait(); err != nil {
+		panic(err)
+	}
+
+	pw1.Close()
+
+	if err := cmd2.Wait(); err != nil {
+		panic(err)
+	}
+
+	pw2.Close()
+
+	if err := cmd3.Wait(); err != nil {
+		panic(err)
+	}
 }
 
 func joinReadNames() {
 
-	logger.Print("starting joinReadNames")
+	io.WriteString(os.Stderr, "Joining read names...\n")
 
-	// The workflow hangs if the results file already exists, so
-	// remove it.
-	_, err := os.Stat(config.ResultsFileName)
-	if err == nil {
-		err := os.Remove(config.ResultsFileName)
-		if err != nil {
-			msg := "Error in joinReadNames, see log files for details.\n"
-			os.Stderr.WriteString(msg)
-			log.Fatal(err)
-		}
-	} else if os.IsNotExist(err) {
-		// do nothing
-	} else {
-		msg := "Error in joinReadNames, see log files for details.\n"
-		os.Stderr.WriteString(msg)
-		log.Fatal(err)
-	}
-
-	// Decompress matches
-	ma := wf.NewProc("ma", fmt.Sprintf("sztool -d %s > {os:ma}",
-		path.Join(config.TempDir, "matches_sn.txt.sz")))
-	ma.SetOut("ma", path.Join(pipedir, "jrn_ma.txt"))
-
-	// Decompress sorted reads
-	rd := wf.NewProc("rd", fmt.Sprintf("sztool -d %s > {os:rd}",
-		path.Join(config.TempDir, "reads_sorted.txt.sz")))
-	rd.SetOut("rd", path.Join(pipedir, "jrn_rd.txt"))
-
-	// Sort the matches
-	sm := wf.NewProc("sm", fmt.Sprintf("sort %s %s -k1 %s {i:in} > {os:sort}", sortmem, sortpar, sortTmpFlag))
-	sm.SetOut("sort", path.Join(pipedir, "jrn_sort.txt"))
-
-	// Join the sorted matches with the reads
-	jo := wf.NewProc("jo", "join -1 1 -2 1 -t'\t' {i:srx} {i:rdx} > {o:out}")
-	jo.SetOut("out", config.ResultsFileName)
-
-	// Connect the network
-	sm.In("in").From(ma.Out("ma"))
-	jo.In("srx").From(sm.Out("sort"))
-	jo.In("rdx").From(rd.Out("rd"))
-
-	logger.Print("joinReadNames done")
-}
-
-func setupLog() {
-	logname := path.Join(config.LogDir, "muscato.log")
-	fid, err := os.Create(logname)
+	fn := path.Join(config.TempDir, "reads_sorted.txt.sz")
+	gn := path.Join(config.TempDir, "matches_sn.txt.sz")
+	c1 := fmt.Sprintf("<(sort -k1 %s %s %s <(sztool -d %s))", sortmem, sortpar, sortTmpFlag, gn)
+	c2 := fmt.Sprintf("<(sztool -d %s)", fn)
+	bs := fmt.Sprintf("join -1 1 -2 1 -t'\t' %s %s > %s", c1, c2, config.ResultsFileName)
+	fid, err := os.Create("bs.sh")
 	if err != nil {
-		msg := fmt.Sprintf("Error creating %s, see log files for details.\n", logname)
-		os.Stderr.WriteString(msg)
-		log.Fatal(err)
+		panic(err)
 	}
-	logger = log.New(fid, "", log.Ltime)
+	_, err = io.WriteString(fid, bs)
+	if err != nil {
+		panic(err)
+	}
+	fid.Close()
+
+	cmd := exec.Command("/bin/bash", "bs.sh")
+	if err := cmd.Run(); err != nil {
+		panic(err)
+	}
 }
 
 // saveConfig saves the configuration file in json format into the log
@@ -426,8 +555,6 @@ func saveConfig(config *utils.Config) {
 }
 
 func handleArgs() {
-
-	// Can't use logger in here because it has not been created yet, write errors/warnings to Stderr.
 
 	ConfigFileName := flag.String("ConfigFileName", "", "JSON file containing configuration parameters")
 	ReadFileName := flag.String("ReadFileName", "", "Sequencing read file (fastq format)")
@@ -525,7 +652,7 @@ func handleArgs() {
 	// Configure the temporary directory for sort.
 	if *SortTemp != "" {
 		config.SortTemp = *SortTemp
-		os.MkdirAll(config.SortTemp, 0770)
+		os.MkdirAll(config.SortTemp, os.ModePerm)
 	}
 	if config.SortTemp != "" {
 		sortTmpFlag = fmt.Sprintf("--temporary-directory=%s", config.SortTemp)
@@ -666,22 +793,10 @@ func makeTemp() {
 		// Overwrite the provided TempDir with a subdirectory.
 		config.TempDir = path.Join(config.TempDir, uid)
 	}
-	err = os.MkdirAll(config.TempDir, 0770)
+	err = os.MkdirAll(config.TempDir, os.ModePerm)
 	if err != nil {
 		if os.IsNotExist(err) {
 			msg := fmt.Sprintf("Directory %s does not exist and cannot be created.", config.TempDir)
-			os.Stderr.WriteString(msg)
-			os.Exit(1)
-		}
-		log.Fatal(err)
-	}
-
-	// The directory where all pipes are written, needs to be in a
-	// filesystem that supports pipes.
-	pipedir, err = ioutil.TempDir("/tmp", "muscato-pipes-")
-	if err != nil {
-		if os.IsNotExist(err) {
-			msg := "Cannot create temporary directory in /tmp for pipes."
 			os.Stderr.WriteString(msg)
 			os.Exit(1)
 		}
@@ -693,259 +808,49 @@ func makeTemp() {
 		config.LogDir = "muscato_logs"
 	}
 	config.LogDir = path.Join(config.LogDir, uid)
-	err = os.MkdirAll(config.LogDir, 0770)
+
+	err = os.MkdirAll(config.LogDir, os.ModePerm)
 	if err != nil {
-		if os.IsNotExist(err) {
-			msg := fmt.Sprintf("Cannot create directory %s for log files.", config.LogDir)
-			os.Stderr.WriteString(msg)
-			os.Exit(1)
-		}
-		log.Fatal(err)
-	}
-
-}
-
-func writeNonMatch() {
-
-	logger.Print("Starting writeNonMatch")
-
-	// Reader for the match file
-	inf, err := os.Open(config.ResultsFileName)
-	if err != nil {
-		if os.IsNotExist(err) {
-			msg := fmt.Sprintf("Cannot open file %s.", config.ResultsFileName)
-			os.Stderr.WriteString(msg)
-			os.Exit(1)
-		}
-		log.Fatal(err)
-	}
-	defer inf.Close()
-
-	// Build a bloom filter based on the matched sequences
-	billion := uint(1000 * 1000 * 1000)
-	bf := bloom.New(4*billion, 5)
-	scanner := bufio.NewScanner(inf)
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
-	for scanner.Scan() {
-		f := bytes.Fields(scanner.Bytes())
-		bf.Add(f[0])
-	}
-	if err := scanner.Err(); err != nil {
-		log.Fatal(err)
-	}
-
-	// Open the nonmatch output file
-	a, b := path.Split(config.ResultsFileName)
-	c := strings.Split(b, ".")
-	d := c[len(c)-1]
-	c[len(c)-1] = "nonmatch"
-	c = append(c, d+".fastq")
-	outname := path.Join(a, strings.Join(c, "."))
-	out, err := os.Create(outname)
-	if err != nil {
-		msg := fmt.Sprintf("Cannot create file %s.", outname)
-		if os.IsNotExist(err) {
-			os.Stderr.WriteString(msg)
-			os.Exit(1)
-		}
-		log.Fatal(msg)
-	}
-	defer out.Close()
-	wtr := bufio.NewWriter(out)
-	defer wtr.Flush()
-
-	// Check each read to see if it was matched.
-	rfname := path.Join(config.TempDir, "reads_sorted.txt.sz")
-	inf, err = os.Open(rfname)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer inf.Close()
-	rdr := snappy.NewReader(inf)
-	scanner = bufio.NewScanner(rdr)
-	var buf bytes.Buffer
-	for scanner.Scan() {
-		f := bytes.Fields(scanner.Bytes())
-		if !bf.Test(f[0]) {
-			buf.Reset()
-			buf.Write(f[2])
-			buf.WriteString("#")
-			buf.Write(f[1])
-			buf.WriteString("\n")
-			buf.Write(f[0])
-			buf.WriteString("\n+\n")
-			for k := 0; k < len(f[0]); k++ {
-				buf.WriteString("!")
-			}
-			buf.WriteString("\n")
-			_, err = wtr.Write(buf.Bytes())
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
-	}
-
-	logger.Print("writeNonMatch done")
-}
-
-// readStats calculates statistics for each read, using a results
-// datafile that is sorted by read.
-func readStats() {
-
-	fid, err := os.Open(config.ResultsFileName)
-	if err != nil {
-		if os.IsNotExist(err) {
-			msg := fmt.Sprintf("Cannot open results file %s, see log files for details.\n", config.ResultsFileName)
-			os.Stderr.WriteString(msg)
-		}
-		log.Fatal(err)
-	}
-	defer fid.Close()
-
-	var outfile string
-	ext := path.Ext(config.ResultsFileName)
-	if ext != "" {
-		m := len(config.ResultsFileName)
-		outfile = config.ResultsFileName[0:m-len(ext)] + "_readstats" + ext
-	} else {
-		outfile = config.ResultsFileName + "_readstats"
-	}
-	out, err := os.Create(outfile)
-	if err != nil {
-		msg := fmt.Sprintf("Cannot create %s, see log files for details.\n", outfile)
-		os.Stderr.WriteString(msg)
-		log.Fatal(err)
-	}
-	defer out.Close()
-
-	scanner := bufio.NewScanner(fid)
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
-
-	var oldread, read []byte
-	var first bool = true
-	var n int
-	genes := make(map[string]bool)
-
-	writeout := func(read []byte) error {
-		var buf bytes.Buffer
-		for g, _ := range genes {
-			buf.Write([]byte(g))
-			buf.Write([]byte(";"))
-		}
-		_, err := out.WriteString(fmt.Sprintf("%s\t%s\n", read, buf.String()))
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-
-	for scanner.Scan() {
-		fields := bytes.Fields(scanner.Bytes())
-		read = fields[7]
-
-		if first {
-			oldread = read
-			first = false
-		}
-
-		if bytes.Compare(read, oldread) != 0 {
-			err := writeout(oldread)
-			if err != nil {
-				os.Stderr.WriteString("Error in readStats, see log files for details.\n")
-				log.Fatal(err)
-			}
-			oldread = []byte(string(read))
-			n = 0
-			genes = make(map[string]bool)
-		}
-
-		n++
-		genes[string(fields[4])] = true
-	}
-
-	err = writeout(read)
-	if err != nil {
-		os.Stderr.WriteString("Error in readStats, see log files for details.\n")
-		log.Fatal(err)
-	}
-
-	if err := scanner.Err(); err != nil {
-		os.Stderr.WriteString("Error in readStats, see log files for details.\n")
-		log.Fatal(err)
-	}
-}
-
-func run() {
-	prepReads()
-	windowReads()
-	sortWindows()
-	screen()
-	sortBloom()
-	confirm()
-	combineWindows()
-	sortByGeneId()
-	joinGeneNames()
-	joinReadNames()
-}
-
-func cleanPipes() {
-	logger.Printf("Removing pipes from %s", pipedir)
-	err := os.RemoveAll(pipedir)
-	if err != nil {
-		logger.Print("Can't remove pipes:")
-		logger.Print(err)
-		logger.Print("Continuing anyway...\n")
+		panic(err)
 	}
 }
 
 func cleanTmp() {
-	if !config.NoCleanTemp {
-		logger.Printf("Removing temporary files from %s", config.TempDir)
-		err := os.RemoveAll(config.TempDir)
-		if err != nil {
-			logger.Print("Can't remove temporary files:")
-			logger.Print(err)
-			logger.Print("Continuing anyway...\n")
-		}
+
+	if config.NoCleanTemp {
+		return
+	}
+
+	err := os.RemoveAll(config.TempDir)
+	if err != nil {
+		panic(err)
 	}
 }
 
-func perfInfo() {
+func genReadStats() {
 
-	// Number of possible k-mers
-	wf := math.Pow(4, float64(config.WindowWidth))
+	io.WriteString(os.Stderr, "Generating read statistics...\n")
 
-	var inf struct {
-		NumUnique int
-		NumTotal  int
+	cmd := exec.Command("muscato_readstats", configFilePath)
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		panic(err)
 	}
+}
 
-	fid, err := os.Open(path.Join(config.LogDir, "seqinfo.json"))
-	if err != nil {
-		msg := "Error in perfInfo, see log files for details.\n"
-		os.Stderr.WriteString(msg)
-		log.Fatal(err)
+func writeNonMatch() {
+
+	io.WriteString(os.Stderr, "Writing non-matching sequences...\n")
+
+	cmd := exec.Command("muscato_nonmatch", configFilePath)
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		panic(err)
 	}
-
-	dec := json.NewDecoder(fid)
-	err = dec.Decode(&inf)
-	if err != nil {
-		msg := "Error in perfInfo, see log files for details.\n"
-		os.Stderr.WriteString(msg)
-		log.Fatal(err)
-	}
-
-	// Fill rate of the k-mer set inclusion function.
-	ff := float64(inf.NumUnique) / wf
-
-	logger.Printf("k-mer sketch fill rate: %.5f", ff)
 }
 
 func main() {
 
-	wf = scipipe.NewWorkflow("muscato", 4)
-
-	defer cleanPipes()
 	defer cleanTmp()
 
 	handleArgs()
@@ -953,19 +858,19 @@ func main() {
 	setupEnvs()
 	makeTemp()
 	saveConfig(config)
-	setupLog()
 
-	logger.Printf("Storing temporary files in %s", config.TempDir)
-	logger.Printf("Storing pipes in %s", pipedir)
-	logger.Printf("Storing log files in %s", config.LogDir)
+	prepReads()
+	windowReads()
+	sortWindows()
+	screen()
+	sortBloom()
+	confirm()
+	combineWindows()
 
-	run()
-	wf.Run()
-
-	perfInfo()
 	writeNonMatch()
-	readStats()
+	genReadStats()
 	geneStats()
-
-	logger.Print("All done, exit after cleanup")
+	sortByGeneId()
+	joinGeneNames()
+	joinReadNames()
 }

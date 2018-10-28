@@ -141,8 +141,6 @@ installing muscato.
 
 [github.com/willf/bloom](http://github.com/willf/bloom)
 
-[github.com/scipipe/scipipe](http://github.com/scipipe/scipipe)
-
 __Issues and feedback__
 
 Please file an [issue](https://github.com/kshedden/muscato/issues) if

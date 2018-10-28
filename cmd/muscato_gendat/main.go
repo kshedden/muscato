@@ -1,3 +1,12 @@
+// Copyright 2017, Kerby Shedden and the Muscato contributors.
+
+/*
+Generate simple data sets for testing.  Gene i contains an exact
+copy of read i, starting at position i % 10.  If there are more
+genes than reads, then the additional genes do not have any
+matches beyond those occuring by chance.
+*/
+
 package main
 
 import (

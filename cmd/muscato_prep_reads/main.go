@@ -87,6 +87,7 @@ func source() {
 		}
 	}
 
+	logger.Printf("Processed %d reads", lnum)
 	logger.Printf("Skipped %d reads for being too short", nskip)
 }
 
@@ -116,5 +117,5 @@ func main() {
 	setupLog()
 	logger.Printf("Starting prep_reads")
 	source()
-	logger.Printf("Done")
+	logger.Printf("prep_reads done")
 }

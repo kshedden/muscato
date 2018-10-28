@@ -64,8 +64,8 @@ After building the target datafile, you can run muscato.  A basic
 invocation is:
 
 ```
-muscato --ReadFileName=reads.fastq --GeneFileName=genes.fasta.sz --GeneIdFileName=genes_ids.sz\
-        --Windows=0,20 --WindowWidth=15
+muscato --ReadFileName=reads.fastq --GeneFileName=genes.fasta.sz --GeneIdFileName=genes_ids.txt.sz\
+        --Windows=0,20 --WindowWidth=15 --MaxReadLength=100
 ```
 
 Note that the target files `genes.fasta.sz` and `genes_ids.sz` were

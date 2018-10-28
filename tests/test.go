@@ -103,8 +103,8 @@ func compare(f1, f2 string) bool {
 		if q1 != q2 {
 			msg := fmt.Sprintf("files %s and %s have different numbers of lines\n", f1, f2)
 			panic(msg)
-		}
-		if !q1 {
+		} else if !q1 {
+			// Completed with no errors
 			break
 		}
 
@@ -116,6 +116,7 @@ func compare(f1, f2 string) bool {
 		}
 	}
 
+	// Check for any scanning errors
 	if err := s1.Err(); err != nil {
 		panic(err)
 	}

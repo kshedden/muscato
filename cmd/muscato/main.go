@@ -1,25 +1,26 @@
 // Copyright 2017, Kerby Shedden and the Muscato contributors.
-
-// Muscato (Multi-Genome Scalable Alignment Tool) is a software tool
-// for matching large collections of reads into large collections of
-// target sequence (e.g. transcript sequences).
 //
-// Muscato uses a two-stage approach.  First, high-entropy
-// subsequences of the reads are used to produce Bloom filter sketches
-// of the read collection.  These sketches are used to identify
-// candidate matches.  For example, if three offsets are chosen at
-// positions 0, 20, and 40 of the reads, then three Bloom filter
-// sketches are constructed.  Then, every window in the target
-// sequence collection is queried against these sketches, identifying
-// a set of candidate matches.  In the next step, for every
-// subsequence appearing at each read offset, all reads and all genes
-// containing the subsequence are assessed for pairwise similarity,
-// and read/target pairs showing sufficiently high similarity are
-// retained.
+// Muscato (Multi-Genome Scalable Alignment Tool) is a software tool
+// for matching large collections of sequencing reads into large
+// collections of target sequence (e.g. exon or gene sequences).
+//
+// Muscato uses a two-stage approach:
+//
+// 1. High entropy subsequences of the reads are used to produce Bloom
+// filter sketches of the read collection.  Separate sketches are
+// obtained for each of several read position offsets, e.g. 20-mers at
+// positions 20, 40, and 60 in the read. Every window in the target
+// sequence collection is then queried against these sketches,
+// identifying a set of candidate matches.
+//
+// 2. The reads and candidate matching target sequences are sorted for
+// each offset position, allowing read/target pairs showing
+// sufficiently high similarity to be retained.
 //
 // This script is the entry point for the Muscato tool.  Normally,
 // this is the only script that will be run directly.  It calls the
-// other Muscato scripts in turn.
+// other Muscato scripts.  All muscato scripts begin with `muscato_`
+// and are installed to the GOBIN directory.
 //
 // Muscato can be invoked either using a configuration file in JSON
 // format, or using command-line flags.  A typical invocation using
@@ -83,6 +84,8 @@ var (
 
 	// Flag for setting the tmp file location for sorting.
 	sortTmpFlag string
+
+	logger *log.Logger
 
 	sortpar string
 	sortmem string
@@ -562,6 +565,15 @@ func saveConfig(config *utils.Config) {
 	configFilePath = path.Join(config.LogDir, "config.json")
 }
 
+func setupLog() {
+	logname := path.Join(config.LogDir, "muscato.log")
+	fid, err := os.Create(logname)
+	if err != nil {
+		panic(err)
+	}
+	logger = log.New(fid, "", log.Ltime)
+}
+
 func handleArgs() {
 
 	ConfigFileName := flag.String("ConfigFileName", "", "JSON file containing configuration parameters")
@@ -865,19 +877,49 @@ func main() {
 	checkArgs()
 	setupEnvs()
 	makeTemp()
+
+	// The logger is not available until after makeTemp runs.
+	setupLog()
+
+	logger.Printf("Starting saveConfig...\n")
 	saveConfig(config)
 
+	logger.Printf("Starting prepReads...\n")
 	prepReads()
+
+	logger.Printf("Starting windowReads...\n")
 	windowReads()
+
+	logger.Printf("Starting sortWindows...\n")
 	sortWindows()
+
+	logger.Printf("Starting screen...\n")
 	screen()
+
+	logger.Printf("Starting sortBloom...\n")
 	sortBloom()
+
+	logger.Printf("Starting confirm...\n")
 	confirm()
+
+	logger.Printf("Starting combineWindows...\n")
 	combineWindows()
+
+	logger.Printf("Starting sortByGeneId...\n")
 	sortByGeneId()
+
+	logger.Printf("Starting joinGeneNames...\n")
 	joinGeneNames()
+
+	logger.Printf("Starting joinReadNames...\n")
 	joinReadNames()
+
+	logger.Printf("Starting writeNoneMatch...\n")
 	writeNonMatch()
+
+	logger.Printf("Starting genReadStats...\n")
 	genReadStats()
+
+	logger.Printf("Starting geneStats...\n")
 	geneStats()
 }

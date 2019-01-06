@@ -14,6 +14,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"flag"
 	"fmt"
 	"io"
@@ -209,22 +210,37 @@ func processFasta(scanner *bufio.Scanner, idout, seqout io.Writer, rev bool) {
 
 func targets(genefile string, rev bool) {
 
+	var rdr io.ReadCloser
+
 	// Setup for reading the input file
-	inf, err := os.Open(genefile)
+	var err error
+	rdr, err = os.Open(genefile)
 	if err != nil {
 		panic(err)
 	}
-	defer inf.Close()
+	defer func(r io.Closer) { r.Close() }(rdr)
+
+	// The input file is gzipped
+	ext := filepath.Ext(genefile)
+	if strings.ToLower(ext) == ".gz" {
+		logger.Printf("Reading gzipped gene sequence file")
+		rdr, err = gzip.NewReader(rdr)
+		if err != nil {
+			panic(err)
+		}
+		defer func(r io.Closer) { r.Close() }(rdr)
+		genefile = strings.Replace(genefile, ext, "", -1)
+		ext = filepath.Ext(genefile)
+	}
 
 	// Setup for writing the sequence output
-	ext := filepath.Ext(genefile)
 	geneoutfile := strings.Replace(genefile, ext, ".txt.sz", 1)
-	gid1, err := os.Create(geneoutfile)
+	gid, err := os.Create(geneoutfile)
 	if err != nil {
 		panic(err)
 	}
-	defer gid1.Close()
-	seqout := snappy.NewBufferedWriter(gid1)
+	defer gid.Close()
+	seqout := snappy.NewBufferedWriter(gid)
 	defer seqout.Close()
 
 	// Setup for writing the identifier output
@@ -238,7 +254,7 @@ func targets(genefile string, rev bool) {
 	defer idout.Close()
 
 	// Setup a scanner to read long lines
-	scanner := bufio.NewScanner(inf)
+	scanner := bufio.NewScanner(rdr)
 	sbuf := make([]byte, 64*1024)
 	scanner.Buffer(sbuf, maxline)
 

@@ -116,12 +116,6 @@ func buildBloom() error {
 
 	logger.Printf("Building Bloom sketch of read collection...")
 
-	hashes := *hashPool.Get().(*[]rollinghash.Hash32)
-	for j := range hashes {
-		hashes[j].Reset()
-	}
-	defer func() { hashPool.Put(&hashes) }()
-
 	fname := path.Join(tmpdir, "reads_sorted.txt.sz")
 	fid, err := os.Open(fname)
 	if err != nil {
@@ -134,6 +128,36 @@ func buildBloom() error {
 
 	// Workspace for sequence diversity checker
 	wk := make([]int, 25)
+
+	// Build worker goroutines to handle each window.
+	var wg sync.WaitGroup
+	wc := make([]chan []byte, len(config.Windows))
+	for k := 0; k < len(config.Windows); k++ {
+
+		wc[k] = make(chan []byte, 100)
+		wg.Add(1)
+
+		go func(k int) {
+
+			defer func() { wg.Done() }()
+
+			hashes := *hashPool.Get().(*[]rollinghash.Hash32)
+			defer func() { hashPool.Put(&hashes) }()
+
+			for seq := range wc[k] {
+				for _, ha := range hashes {
+					ha.Reset()
+					if _, err := ha.Write(seq); err != nil {
+						panic(err)
+					}
+					x := uint64(ha.Sum32()) % config.BloomSize
+					if err := smp[k].SetBit(x); err != nil {
+						panic(err)
+					}
+				}
+			}
+		}(k)
+	}
 
 	var j int
 	for ; scanner.Scan(); j++ {
@@ -158,22 +182,9 @@ func buildBloom() error {
 				continue
 			}
 
-			// Update the Bloom filter for this sequence.
-			// This could probably be made concurrent, but
-			// there may be too much contention for a big
-			// payoff.
-			for _, ha := range hashes {
-				ha.Reset()
-				_, err = ha.Write(seqw)
-				if err != nil {
-					return err
-				}
-				x := uint64(ha.Sum32()) % config.BloomSize
-				err := smp[k].SetBit(x)
-				if err != nil {
-					return err
-				}
-			}
+			seqz := make([]byte, len(seqw))
+			copy(seqz, seqw)
+			wc[k] <- seqz
 		}
 	}
 
@@ -182,6 +193,12 @@ func buildBloom() error {
 		os.Stderr.WriteString(msg)
 		return err
 	}
+
+	for k := 0; k < len(config.Windows); k++ {
+		close(wc[k])
+	}
+
+	wg.Wait()
 
 	logger.Printf("Done constructing Bloom filters")
 	return nil

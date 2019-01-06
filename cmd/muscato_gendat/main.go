@@ -16,6 +16,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"flag"
 	"fmt"
 	"io"
@@ -48,29 +49,16 @@ func generateReads() {
 	defer w.Flush()
 
 	buf := new(bytes.Buffer)
-	seq := new(bytes.Buffer)
+	seq := make([]byte, readLen+geneLen)
 
 	for i := 0; i < numRead; i++ {
 
 		buf.Reset()
-		seq.Reset()
 
 		io.WriteString(buf, fmt.Sprintf("read_%d\n", i))
 
-		for j := 0; j < readLen; j++ {
-			x := rand.Float64()
-			switch {
-			case x < 0.25:
-				io.WriteString(seq, "A")
-			case x < 0.5:
-				io.WriteString(seq, "T")
-			case x < 0.75:
-				io.WriteString(seq, "G")
-			default:
-				io.WriteString(seq, "C")
-			}
-		}
-		buf.Write(seq.Bytes())
+		seq = genRand(readLen, seq)
+		buf.Write(seq)
 
 		io.WriteString(buf, "\n+\n")
 		for j := 0; j < readLen; j++ {
@@ -84,14 +72,17 @@ func generateReads() {
 		}
 
 		if i < 10 {
-			reads = append(reads, string(seq.Bytes()))
+			reads = append(reads, string(seq))
 		}
 	}
 }
 
-func writeRand(w io.Writer, n int) {
+func genRand(n int, seq []byte) []byte {
 
-	seq := make([]byte, n)
+	if cap(seq) < n {
+		seq = make([]byte, n)
+	}
+	seq = seq[0:n]
 
 	for j := 0; j < n; j++ {
 		x := rand.Float64()
@@ -107,21 +98,22 @@ func writeRand(w io.Writer, n int) {
 		}
 	}
 
-	_, err := w.Write(seq)
-	if err != nil {
-		panic(err)
-	}
+	return seq
 }
 
 func generateGenes() {
 
-	fname := path.Join(dir, "genes.txt")
+	seq := make([]byte, geneLen+readLen)
+
+	fname := path.Join(dir, "genes.txt.gz")
 	fid, err := os.Create(fname)
 	if err != nil {
 		panic(err)
 	}
 	defer fid.Close()
-	w := bufio.NewWriter(fid)
+	zid := gzip.NewWriter(fid)
+	defer zid.Close()
+	w := bufio.NewWriter(zid)
 	defer w.Flush()
 
 	fmt.Printf("Writing %d genes\n", numGene)
@@ -135,16 +127,25 @@ func generateGenes() {
 		if i < numGene/2 {
 
 			j := i % 10
-			writeRand(w, j)
+			seq = genRand(j, seq)
+			if _, err := w.Write(seq); err != nil {
+				panic(err)
+			}
 
 			_, err := io.WriteString(w, reads[j])
 			if err != nil {
 				panic(err)
 			}
 
-			writeRand(w, geneLen-(readLen+j))
+			seq = genRand(geneLen-(readLen+j), seq)
+			if _, err := w.Write(seq); err != nil {
+				panic(err)
+			}
 		} else {
-			writeRand(w, geneLen)
+			seq = genRand(geneLen, seq)
+			if _, err := w.Write(seq); err != nil {
+				panic(err)
+			}
 		}
 
 		_, err = io.WriteString(w, "\n")

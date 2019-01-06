@@ -91,14 +91,26 @@ func main() {
 		if len(na) > 1000 {
 			na = na[0:996] + "..."
 		}
-		wtr.Write(seq)
-		wtr.Write([]byte(fmt.Sprintf("\t%d\t", len(names))))
-		wtr.Write([]byte(na))
-		wtr.Write([]byte("\n"))
+
+		_, err := wtr.Write(seq)
+		if err != nil {
+			panic(err)
+		}
+		_, err = wtr.Write([]byte(fmt.Sprintf("\t%d\t", len(names))))
+		if err != nil {
+			panic(err)
+		}
+		_, err = wtr.Write([]byte(na))
+		if err != nil {
+			panic(err)
+		}
+		_, err = wtr.Write([]byte("\n"))
+		if err != nil {
+			panic(err)
+		}
 	}
 
-	nseq := 0
-	nunq := 0
+	var nseq, nunq int
 	for scanner.Scan() {
 
 		line = scanner.Bytes()
@@ -121,9 +133,10 @@ func main() {
 
 	printrow(seq, names)
 	nunq++
+	nseq++
 
-	log.Printf("Found %d total sequences", nseq)
-	log.Printf("Found %d unique sequences", nunq)
+	os.Stderr.WriteString(fmt.Sprintf("Found %d total sequences\n", nseq))
+	os.Stderr.WriteString(fmt.Sprintf("Found %d unique sequences\n", nunq))
 
 	writeSeqInfo(nseq, nunq)
 }

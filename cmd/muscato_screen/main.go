@@ -100,15 +100,27 @@ func genTables() {
 	}
 }
 
+var hashPool = sync.Pool{
+
+	New: func() interface{} {
+		hashes := make([]rollinghash.Hash32, config.NumHash)
+		for j := range hashes {
+			hashes[j] = buzhash32.NewFromUint32Array(tables[j])
+		}
+		return &hashes
+	},
+}
+
 // buildBloom constructs bloom filters for each window
 func buildBloom() error {
 
 	logger.Printf("Building Bloom sketch of read collection...")
 
-	hashes := make([]rollinghash.Hash32, config.NumHash)
+	hashes := *hashPool.Get().(*[]rollinghash.Hash32)
 	for j := range hashes {
-		hashes[j] = buzhash32.NewFromUint32Array(tables[j])
+		hashes[j].Reset()
 	}
+	defer func() { hashPool.Put(&hashes) }()
 
 	fname := path.Join(tmpdir, "reads_sorted.txt.sz")
 	fid, err := os.Open(fname)
@@ -184,7 +196,7 @@ type rec struct {
 }
 
 // checkWin returns the indices of the Bloom filters that match the
-// current state of the hashes.  iw is workspace and hashses contains
+// current state of the hashes.  iw is workspace and hashes contains
 // the hashes that define the Bloom filters.
 func checkWin(ix []int, iw []uint64, hashes []rollinghash.Hash32) ([]int, error) {
 
@@ -206,11 +218,14 @@ func checkWin(ix []int, iw []uint64, hashes []rollinghash.Hash32) ([]int, error)
 				return nil, err
 			}
 			if !f {
+				// This hash does not match, no need to check the
+				// remaining hashes
 				g = false
 				break
 			}
 		}
 		if g {
+			// All hashes match
 			ix = append(ix, k)
 		}
 	}
@@ -219,14 +234,15 @@ func checkWin(ix []int, iw []uint64, hashes []rollinghash.Hash32) ([]int, error)
 }
 
 // process one target sequence, runs concurrently with main loop.
-func processseq(seq []byte, genenum int, errc chan error) {
+func processSeq(seq []byte, genenum int, errc chan error) {
 
 	defer func() { <-limit }()
 
-	hashes := make([]rollinghash.Hash32, config.NumHash)
+	hashes := *hashPool.Get().(*[]rollinghash.Hash32)
 	for j := range hashes {
-		hashes[j] = buzhash32.NewFromUint32Array(tables[j])
+		hashes[j].Reset()
 	}
+	defer func() { hashPool.Put(&hashes) }()
 
 	// Initialize the hashes with the first window.
 	hlen := config.WindowWidth
@@ -414,7 +430,7 @@ func search() error {
 		seq := toks[0] // The sequence
 
 		limit <- true
-		go processseq([]byte(seq), i, errc)
+		go processSeq([]byte(seq), i, errc)
 	}
 
 	if err := scanner.Err(); err != nil {

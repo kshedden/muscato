@@ -73,7 +73,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/kshedden/muscato/utils"
-	"golang.org/x/sys/unix"
 )
 
 var (
@@ -107,6 +106,8 @@ func geneStats() {
 	}
 	args = append(args, config.ResultsFileName)
 	cmd1 := exec.Command("sort", args...)
+	cmd1.Stderr = os.Stderr
+	cmd1.Env = os.Environ()
 	cmd1.Stdout = pw1
 
 	var outfile string
@@ -120,6 +121,8 @@ func geneStats() {
 
 	cmd2 := exec.Command("muscato_genestats", "-")
 	cmd2.Stdin = pr1
+	cmd2.Stderr = os.Stderr
+	cmd2.Env = os.Environ()
 	fid, err := os.Create(outfile)
 	if err != nil {
 		panic(err)
@@ -139,25 +142,11 @@ func geneStats() {
 	}
 
 	pw1.Close()
+	pr1.Close()
 
 	if err := cmd2.Wait(); err != nil {
 		panic(err)
 	}
-}
-
-func mkfifo(pa string) *os.File {
-
-	err := unix.Mkfifo(pa, 0600)
-	if err != nil {
-		panic(err)
-	}
-
-	file, err := os.OpenFile(pa, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
-	if err != nil {
-		panic(err)
-	}
-
-	return file
 }
 
 func prepReads() {
@@ -174,9 +163,19 @@ func prepReads() {
 		panic(err)
 	}
 
+	// The destination file
+	outfinal := path.Join(config.TempDir, "reads_sorted.txt.sz")
+	fid, err := os.Create(outfinal)
+	if err != nil {
+		panic(err)
+	}
+	defer fid.Close()
+
 	// Run muscato_prep_reads
 	cmd1 := exec.Command("muscato_prep_reads", configFilePath)
 	cmd1.Stdout = pw1
+	cmd1.Env = os.Environ()
+	cmd1.Stderr = os.Stderr
 
 	// Sort the output of muscato_prep_reads
 	args := []string{sortmem, sortpar}
@@ -186,20 +185,17 @@ func prepReads() {
 	cmd2 := exec.Command("sort", args...)
 	cmd2.Stdin = pr1
 	cmd2.Stdout = pw2
+	cmd2.Env = os.Environ()
+	cmd2.Stderr = os.Stderr
 
 	// Uniqify and count duplicates
-	outfinal := path.Join(config.TempDir, "reads_sorted.txt.sz")
 	cmd3 := exec.Command("muscato_uniqify", configFilePath, "-")
 	cmd3.Stdin = pr2
-	fid, err := os.Create(outfinal)
-	if err != nil {
-		panic(err)
-	}
-	defer fid.Close()
 	cmd3.Stdout = fid
+	cmd3.Env = os.Environ()
+	cmd3.Stderr = os.Stderr
 
 	for _, cmd := range []*exec.Cmd{cmd1, cmd2, cmd3} {
-		cmd.Stderr = os.Stderr
 		if err := cmd.Start(); err != nil {
 			panic(err)
 		}
@@ -210,12 +206,14 @@ func prepReads() {
 	}
 
 	pw1.Close()
+	pr1.Close()
 
 	if err := cmd2.Wait(); err != nil {
 		panic(err)
 	}
 
 	pw2.Close()
+	pr2.Close()
 
 	if err := cmd3.Wait(); err != nil {
 		panic(err)
@@ -229,6 +227,7 @@ func windowReads() {
 	// Run muscato_prep_reads
 	cmd := exec.Command("muscato_window_reads", configFilePath)
 	cmd.Stderr = os.Stderr
+	cmd.Env = os.Environ()
 
 	if err := cmd.Run(); err != nil {
 		panic(err)
@@ -254,6 +253,8 @@ func sortWindows() {
 		// Decompress matches
 		fn := path.Join(config.TempDir, fmt.Sprintf("win_%d.txt.sz", k))
 		cmd1 := exec.Command("sztool", "-d", fn)
+		cmd1.Env = os.Environ()
+		cmd1.Stderr = os.Stderr
 		cmd1.Stdout = pw1
 
 		// Sort the matches
@@ -263,6 +264,8 @@ func sortWindows() {
 		}
 		args = append(args, "-")
 		cmd2 := exec.Command("sort", args...)
+		cmd2.Env = os.Environ()
+		cmd2.Stderr = os.Stderr
 		cmd2.Stdin = pr1
 		cmd2.Stdout = pw2
 
@@ -270,6 +273,8 @@ func sortWindows() {
 		fn = strings.Replace(fn, ".txt.sz", "_sorted.txt.sz", 1)
 		cmd3 := exec.Command("sztool", "-c", "-", fn)
 		cmd3.Stdin = pr2
+		cmd3.Stderr = os.Stderr
+		cmd3.Env = os.Environ()
 
 		for _, cmd := range []*exec.Cmd{cmd1, cmd2, cmd3} {
 			cmd.Stderr = os.Stderr
@@ -283,12 +288,14 @@ func sortWindows() {
 		}
 
 		pw1.Close()
+		pr1.Close()
 
 		if err := cmd2.Wait(); err != nil {
 			panic(err)
 		}
 
 		pw2.Close()
+		pr2.Close()
 
 		if err := cmd3.Wait(); err != nil {
 			panic(err)
@@ -302,6 +309,7 @@ func screen() {
 
 	cmd := exec.Command("muscato_screen", configFilePath)
 	cmd.Stderr = os.Stderr
+	cmd.Env = os.Environ()
 	if err := cmd.Run(); err != nil {
 		panic(err)
 	}
@@ -327,6 +335,8 @@ func sortBloom() {
 		fn := path.Join(config.TempDir, fmt.Sprintf("bmatch_%d.txt.sz", k))
 		cmd1 := exec.Command("sztool", "-d", fn)
 		cmd1.Stdout = pw1
+		cmd1.Env = os.Environ()
+		cmd1.Stderr = os.Stderr
 
 		// Sort the matches
 		args := []string{sortmem, sortpar, "-k1"}
@@ -337,11 +347,15 @@ func sortBloom() {
 		cmd2 := exec.Command("sort", args...)
 		cmd2.Stdin = pr1
 		cmd2.Stdout = pw2
+		cmd2.Env = os.Environ()
+		cmd2.Stderr = os.Stderr
 
 		// Compress results
 		fn = path.Join(config.TempDir, fmt.Sprintf("smatch_%d.txt.sz", k))
 		cmd3 := exec.Command("sztool", "-c", "-", fn)
 		cmd3.Stdin = pr2
+		cmd3.Stderr = os.Stderr
+		cmd3.Env = os.Environ()
 
 		for _, cmd := range []*exec.Cmd{cmd1, cmd2, cmd3} {
 			cmd.Stderr = os.Stderr
@@ -355,12 +369,14 @@ func sortBloom() {
 		}
 
 		pw1.Close()
+		pr1.Close()
 
 		if err := cmd2.Wait(); err != nil {
 			panic(err)
 		}
 
 		pw2.Close()
+		pr2.Close()
 
 		if err := cmd3.Wait(); err != nil {
 			panic(err)
@@ -372,12 +388,34 @@ func confirm() {
 
 	io.WriteString(os.Stderr, "Confirming...\n")
 
-	for k := 0; k < len(config.Windows); k++ {
-		cmd := exec.Command("muscato_confirm", configFilePath, fmt.Sprintf("%d", k))
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			panic(err)
+	for j := 0; j < len(config.Windows); {
+
+		var cmds []*exec.Cmd
+
+		// Run a group of confirm processes in parallel
+		m := j + config.MaxConfirmProcs
+		if m > len(config.Windows) {
+			m = len(config.Windows)
 		}
+		for k := j; k < m; k++ {
+			logger.Printf("Starting confirm %d\n", k)
+			cmd := exec.Command("muscato_confirm", configFilePath, fmt.Sprintf("%d", k))
+			cmd.Stderr = os.Stderr
+			cmd.Env = os.Environ()
+			if err := cmd.Start(); err != nil {
+				panic(err)
+			}
+			cmds = append(cmds, cmd)
+		}
+
+		for _, c := range cmds {
+			if err := c.Wait(); err != nil {
+				panic(err)
+			}
+		}
+		logger.Printf("Confirm group done\n")
+
+		j = m
 	}
 }
 
@@ -385,9 +423,83 @@ func combineWindows() {
 
 	io.WriteString(os.Stderr, "Combining windows...\n")
 
-	cmd := exec.Command("muscato_combine_windows", configFilePath)
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	pr0, pw0, err := os.Pipe()
+	if err != nil {
+		panic(err)
+	}
+
+	pr1, pw1, err := os.Pipe()
+	if err != nil {
+		panic(err)
+	}
+
+	pr2, pw2, err := os.Pipe()
+	if err != nil {
+		panic(err)
+	}
+
+	// Concatenate everything, excluding duplicates
+	cc := []string{"100000000", "0.000001", "run"}
+	for j := 0; j < len(config.Windows); j++ {
+		f := fmt.Sprintf("rmatch_%d.txt.sz", j)
+		fname := path.Join(config.TempDir, f)
+		cc = append(cc, fname)
+	}
+	cmd0 := exec.Command("muscato_combine_filter", cc...)
+	cmd0.Env = os.Environ()
+	cmd0.Stderr = os.Stderr
+	cmd0.Stdout = pw0
+
+	// Pipe everything into one sort/unique
+	var cmd1 *exec.Cmd
+	if sortTmpFlag != "" {
+		cmd1 = exec.Command("sort", sortmem, sortpar, sortTmpFlag, "-u", "-")
+	} else {
+		cmd1 = exec.Command("sort", sortmem, sortpar, "-u", "-")
+	}
+	cmd1.Env = os.Environ()
+	cmd1.Stderr = os.Stderr
+	cmd1.Stdin = pr0
+	cmd1.Stdout = pw1
+
+	cmd2 := exec.Command("muscato_combine_windows", configFilePath)
+	cmd2.Env = os.Environ()
+	cmd2.Stderr = os.Stderr
+	cmd2.Stdin = pr1
+	cmd2.Stdout = pw2
+
+	outname := path.Join(config.TempDir, "matches.txt.sz")
+	cmd3 := exec.Command("sztool", "-c", "-", outname)
+	cmd3.Env = os.Environ()
+	cmd3.Stderr = os.Stderr
+	cmd3.Stdin = pr2
+
+	for _, cmd := range []*exec.Cmd{cmd0, cmd1, cmd2, cmd3} {
+		cmd.Stderr = os.Stderr
+		if err := cmd.Start(); err != nil {
+			panic(err)
+		}
+	}
+
+	if err := cmd0.Wait(); err != nil {
+		panic(err)
+	}
+	pw0.Close()
+	pr0.Close()
+
+	if err := cmd1.Wait(); err != nil {
+		panic(err)
+	}
+	pw1.Close()
+	pr1.Close()
+
+	if err := cmd2.Wait(); err != nil {
+		panic(err)
+	}
+	pw2.Close()
+	pr2.Close()
+
+	if err := cmd3.Wait(); err != nil {
 		panic(err)
 	}
 }
@@ -412,6 +524,8 @@ func sortByGeneId() {
 	// Sort by gene number
 	cmd1 := exec.Command("sztool", "-d", inname)
 	cmd1.Stdout = pw1
+	cmd1.Env = os.Environ()
+	cmd1.Stderr = os.Stderr
 
 	// k5 is position of gene id
 	args := []string{sortmem, sortpar, "-k5"}
@@ -422,10 +536,14 @@ func sortByGeneId() {
 	cmd2 := exec.Command("sort", args...)
 	cmd2.Stdin = pr1
 	cmd2.Stdout = pw2
+	cmd2.Env = os.Environ()
+	cmd2.Stderr = os.Stderr
 
 	// Compress the results
 	cmd3 := exec.Command("sztool", "-c", "-", outname)
 	cmd3.Stdin = pr2
+	cmd3.Env = os.Environ()
+	cmd3.Stderr = os.Stderr
 
 	for _, cmd := range []*exec.Cmd{cmd1, cmd2, cmd3} {
 		cmd.Stderr = os.Stderr
@@ -439,12 +557,14 @@ func sortByGeneId() {
 	}
 
 	pw1.Close()
+	pr1.Close()
 
 	if err := cmd2.Wait(); err != nil {
 		panic(err)
 	}
 
 	pw2.Close()
+	pr2.Close()
 
 	if err := cmd3.Wait(); err != nil {
 		panic(err)
@@ -473,19 +593,26 @@ func joinGeneNames() {
 	fid.Close()
 	cmd1 := exec.Command("/bin/bash", "bs.sh")
 	cmd1.Stdout = pw1
+	cmd1.Env = os.Environ()
+	cmd1.Stderr = os.Stderr
 
 	// Cut out unwanted column
 	// The first argument after cur is -d(tab)
 	cmd2 := exec.Command("cut", "-d	", "-f1", "--complement", "-")
 	cmd2.Stdin = pr1
 	cmd2.Stdout = pw2
+	cmd2.Env = os.Environ()
+	cmd2.Stderr = os.Stderr
 
 	// Compress the result
 	cmd3 := exec.Command("sztool", "-c", "-", path.Join(config.TempDir, "matches_sn.txt.sz"))
 	cmd3.Stdin = pr2
+	cmd3.Stderr = os.Stderr
+	cmd3.Env = os.Environ()
 
 	for _, cmd := range []*exec.Cmd{cmd1, cmd2, cmd3} {
 		cmd.Stderr = os.Stderr
+		cmd.Env = os.Environ()
 		if err := cmd.Start(); err != nil {
 			panic(err)
 		}
@@ -496,12 +623,14 @@ func joinGeneNames() {
 	}
 
 	pw1.Close()
+	pr1.Close()
 
 	if err := cmd2.Wait(); err != nil {
 		panic(err)
 	}
 
 	pw2.Close()
+	pr2.Close()
 
 	if err := cmd3.Wait(); err != nil {
 		panic(err)
@@ -539,6 +668,8 @@ func joinReadNames() {
 	fid.Close()
 
 	cmd := exec.Command("/bin/bash", "bs.sh")
+	cmd.Env = os.Environ()
+	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		panic(err)
 	}
@@ -853,6 +984,7 @@ func genReadStats() {
 
 	cmd := exec.Command("muscato_readstats", configFilePath)
 	cmd.Stderr = os.Stderr
+	cmd.Env = os.Environ()
 	if err := cmd.Run(); err != nil {
 		panic(err)
 	}
@@ -864,6 +996,7 @@ func writeNonMatch() {
 
 	cmd := exec.Command("muscato_nonmatch", configFilePath)
 	cmd.Stderr = os.Stderr
+	cmd.Env = os.Environ()
 	if err := cmd.Run(); err != nil {
 		panic(err)
 	}
@@ -914,7 +1047,7 @@ func main() {
 	logger.Printf("Starting joinReadNames...\n")
 	joinReadNames()
 
-	logger.Printf("Starting writeNoneMatch...\n")
+	logger.Printf("Starting writeNonMatch...\n")
 	writeNonMatch()
 
 	logger.Printf("Starting genReadStats...\n")

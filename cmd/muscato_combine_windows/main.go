@@ -1,21 +1,20 @@
 // Copyright 2017, Kerby Shedden and the Muscato contributors.
-
-// muscato_combine_windows...
+//
+// muscato_combine_windows takes all matches for the same read, then
+// retains only those with nmiss equal to at most one greater than
+// the lowest nmiss.
 
 package main
 
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"log"
 	"os"
-	"os/exec"
 	"path"
 	"strconv"
 	"strings"
 
-	"github.com/golang/snappy"
 	"github.com/kshedden/muscato/utils"
 )
 
@@ -33,8 +32,8 @@ var (
 // writebest accepts a set of lines (lines), which have also been
 // broken into fields (bfr).  Every line represents a candidate match.
 // The matches with at most mmtol more matches than the best match are
-// written to the io writer (wtr).  ibuf is provided workspace.
-func writebest(lines []string, bfr [][]string, wtr io.Writer, ibuf []int, mmtol int) ([]int, error) {
+// printed out.  ibuf is provided workspace.
+func writebest(lines []string, bfr [][]string, ibuf []int, mmtol int) ([]int, error) {
 
 	// Find the best fit, determine the number of mismatches for each sequence.
 	ibuf = ibuf[0:0]
@@ -53,14 +52,7 @@ func writebest(lines []string, bfr [][]string, wtr io.Writer, ibuf []int, mmtol 
 	// Output the sequences with acceptable number of mismatches.
 	for i, x := range lines {
 		if ibuf[i] <= best+mmtol {
-			_, err := wtr.Write([]byte(x))
-			if err != nil {
-				return nil, err
-			}
-			_, err = wtr.Write([]byte("\n"))
-			if err != nil {
-				return nil, err
-			}
+			fmt.Println(x)
 		}
 	}
 
@@ -97,136 +89,55 @@ func main() {
 	setupLog()
 	logger.Print("starting combineWindows")
 
-	sortpar = fmt.Sprintf("--parallel=%d", config.SortPar)
-	sortmem = fmt.Sprintf("-S %s", config.SortMem)
-
-	sortTmpFlag = fmt.Sprintf("--temporary-directory=%s", config.SortTemp)
-
 	mmtol := config.MMTol
 
-	// Pipe everything into one sort/unique
-	var c0 *exec.Cmd
-	if sortTmpFlag != "" {
-		c0 = exec.Command("sort", sortmem, sortpar, sortTmpFlag, "-u", "-")
-	} else {
-		c0 = exec.Command("sort", sortmem, sortpar, "-u", "-")
-	}
-	c0.Env = os.Environ()
-	c0.Stderr = os.Stderr
-	cmds := []*exec.Cmd{c0}
+	scanner := bufio.NewScanner(os.Stdin)
+	var lines []string
+	var fields [][]string
+	var ibuf []int
+	var current string
+	var err error
+	for scanner.Scan() {
 
-	// The sorted results go to disk
-	outname := path.Join(config.TempDir, "matches.txt.sz")
-	out, err := os.Create(outname)
-	if err != nil {
-		msg := "Error in combineWindows, see log files for details.\n"
-		os.Stderr.WriteString(msg)
-		log.Fatal(err)
-	}
-	defer out.Close()
-	wtr := snappy.NewBufferedWriter(out)
-	defer wtr.Close()
+		line := scanner.Text()
+		field := strings.Fields(line)
 
-	// TODO: Add Bloom filter here to screen out duplicates
-	var fd []io.Reader
-	for j := 0; j < len(config.Windows); j++ {
-		f := fmt.Sprintf("rmatch_%d.txt.sz", j)
-		fname := path.Join(config.TempDir, f)
-		c := exec.Command("sztool", "-d", fname)
-		c.Env = os.Environ()
-		c.Stderr = os.Stderr
-		cmds = append(cmds, c)
-		p, err := c.StdoutPipe()
-		if err != nil {
-			msg := "Error in combineWindows, see log files for details.\n"
-			os.Stderr.WriteString(msg)
-			log.Fatal(err)
-		}
-		fd = append(fd, p)
-	}
-	c0.Stdin = io.MultiReader(fd...)
-	da, err := c0.StdoutPipe()
-	if err != nil {
-		msg := "Error in combineWindows, see log files for details.\n"
-		os.Stderr.WriteString(msg)
-		log.Fatal(err)
-	}
-
-	for _, c := range cmds {
-		err := c.Start()
-		if err != nil {
-			msg := "Error in combineWindows, see log files for details.\n"
-			os.Stderr.WriteString(msg)
-			log.Fatal(err)
-		}
-	}
-
-	// Taking all matches for the same read, retain only those
-	// with nmiss equal to at most one greater than the lowest
-	// nmiss.
-	sem := make(chan bool, 1)
-	sem <- true
-	// DEBUG used to be go func()
-	func() {
-		scanner := bufio.NewScanner(da)
-		var lines []string
-		var fields [][]string
-		var ibuf []int
-		var current string
-		for scanner.Scan() {
-			line := scanner.Text()
-			field := strings.Fields(line)
-
-			// Add to the current block.
-			if current == "" || field[0] == current {
-				lines = append(lines, line)
-				fields = append(fields, field)
-				current = field[0]
-				continue
-			}
-
-			// Process a block
-			ibuf, err = writebest(lines, fields, wtr, ibuf, mmtol)
-			if err != nil {
-				msg := "Error in combineWindows, see log file for details.\n"
-				os.Stderr.WriteString(msg)
-				log.Fatal(err)
-			}
-			lines = lines[0:0]
+		// Add to the current block.
+		if current == "" || field[0] == current {
 			lines = append(lines, line)
-			fields = fields[0:0]
 			fields = append(fields, field)
 			current = field[0]
+			continue
 		}
 
-		if err := scanner.Err(); err == nil {
-			// Process the final block if possible
-			_, err := writebest(lines, fields, wtr, ibuf, mmtol)
-			if err != nil {
-				msg := "Error in combineWindows, see log file for details.\n"
-				os.Stderr.WriteString(msg)
-				log.Fatal(err)
-			}
-		} else {
-			// Should never get here, but just in case log
-			// the error but don't try to process the
-			// remaining lines which may be corrupted.
-			logger.Printf("%v", err)
-		}
-
-		<-sem
-	}()
-
-	// OK to call Wait, done reading.
-	for _, c := range cmds {
-		err := c.Wait()
+		// Process a block
+		ibuf, err = writebest(lines, fields, ibuf, mmtol)
 		if err != nil {
 			msg := "Error in combineWindows, see log file for details.\n"
 			os.Stderr.WriteString(msg)
 			log.Fatal(err)
 		}
+		lines = lines[0:0]
+		lines = append(lines, line)
+		fields = fields[0:0]
+		fields = append(fields, field)
+		current = field[0]
 	}
-	sem <- true
+
+	if err := scanner.Err(); err == nil {
+		// Process the final block if possible
+		_, err := writebest(lines, fields, ibuf, mmtol)
+		if err != nil {
+			msg := "Error in combineWindows, see log file for details.\n"
+			os.Stderr.WriteString(msg)
+			log.Fatal(err)
+		}
+	} else {
+		// Should never get here, but just in case log
+		// the error but don't try to process the
+		// remaining lines which may be corrupted.
+		logger.Printf("%v", err)
+	}
 
 	logger.Print("combineWindows done")
 }

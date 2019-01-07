@@ -3,8 +3,8 @@ Name = "muscato_prep_targets 1 (fasta input)"
 Base = "data/prep_targets/00"
 Command = "muscato_prep_targets"
 Args = ["genes.fasta"]
-Files = [["genes_ids.txt.sz", "genes_ids_e.txt"],
-         ["genes.txt.sz", "genes_e.txt"]]
+Files = [["musc_genes.fasta.sz", "expected_sequences.txt"],
+         ["musc_ids_genes.fasta.sz", "expected_ids.txt"]]
 
 [[Test]]
 Name = "muscato_prep_targets 2 (fasta input, reversed)"
@@ -12,16 +12,16 @@ Base = "data/prep_targets/01"
 Command = "muscato_prep_targets"
 Opts = ["-rev"]
 Args = ["genes.fasta"]
-Files = [["genes_ids.txt.sz", "genes_ids_e.txt"],
-         ["genes.txt.sz", "genes_e.txt"]]
+Files = [["musc_genes.fasta.sz", "expected_sequences.txt"],
+         ["musc_ids_genes.fasta.sz", "expected_ids.txt"]]
 
 [[Test]]
 Name = "muscato_prep_targets 3 (text input)"
 Base = "data/prep_targets/02"
 Command = "muscato_prep_targets"
 Args = ["genes.txt"]
-Files = [["genes_ids.txt.sz", "genes_ids_e.txt"],
-         ["genes.txt.sz", "genes_e.txt"]]
+Files = [["musc_genes.txt.sz", "expected_sequences.txt"],
+         ["musc_ids_genes.txt.sz", "expected_ids.txt"]]
 
 [[Test]]
 Name = "muscato_prep_targets 4 (text input, reversed)"
@@ -29,25 +29,43 @@ Base = "data/prep_targets/03"
 Command = "muscato_prep_targets"
 Opts = ["-rev"]
 Args = ["genes.txt"]
-Files = [["genes_ids.txt.sz", "genes_ids_e.txt"],
-         ["genes.txt.sz", "genes_e.txt"]]
+Files = [["musc_genes.txt.sz", "expected_sequences.txt"],
+         ["musc_ids_genes.txt.sz", "expected_ids.txt"]]
 
 [[Test]]
-Name = "muscato_prep_targets 5 (text input)"
+Name = "muscato_prep_targets 5 (text input, gzipped)"
 Base = "data/prep_targets/04"
 Command = "muscato_prep_targets"
 Args = ["genes.txt.gz"]
-Files = [["genes_ids.txt.sz", "genes_ids_e.txt"],
-         ["genes.txt.sz", "genes_e.txt"]]
+Files = [["musc_genes.txt.sz", "expected_sequences.txt"],
+         ["musc_ids_genes.txt.sz", "expected_ids.txt"]]
 
 [[Test]]
-Name = "muscato_prep_targets 6 (text input, reversed)"
+Name = "muscato_prep_targets 6 (text input, reversed, gzipped)"
 Base = "data/prep_targets/05"
 Command = "muscato_prep_targets"
 Opts = ["-rev"]
 Args = ["genes.txt.gz"]
-Files = [["genes_ids.txt.sz", "genes_ids_e.txt"],
-         ["genes.txt.sz", "genes_e.txt"]]
+Files = [["musc_genes.txt.sz", "expected_sequences.txt"],
+         ["musc_ids_genes.txt.sz", "expected_ids.txt"]]
+
+[[Test]]
+Name = "muscato_prep_targets 7 (text input, reversed, snappy)"
+Base = "data/prep_targets/06"
+Command = "muscato_prep_targets"
+Opts = ["-rev"]
+Args = ["genes.txt.sz"]
+Files = [["musc_genes.txt.sz", "expected_sequences.txt"],
+         ["musc_ids_genes.txt.sz", "expected_ids.txt"]]
+
+[[Test]]
+Name = "muscato_prep_targets 8 (text input, reversed, snappy)"
+Base = "data/prep_targets/07"
+Command = "muscato_prep_targets"
+Opts = ["-rev"]
+Args = ["genes.txt.sz"]
+Files = [["musc_genes.txt.sz", "expected_sequences.txt"],
+         ["musc_ids_genes.txt.sz", "expected_ids.txt"]]
 
 [[Test]]
 Name = "muscato 0 prep"

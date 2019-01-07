@@ -68,24 +68,12 @@ Files = [["musc_genes.txt.sz", "expected_sequences.txt"],
          ["musc_ids_genes.txt.sz", "expected_ids.txt"]]
 
 [[Test]]
-Name = "muscato 0 prep"
-Base = "data/muscato/00"
-Command = "muscato_prep_targets"
-Args = ["genes.txt"]
-
-[[Test]]
 Name = "muscato 0"
 Base = "data/muscato/00"
 Command = "muscato"
 Opts = ["-ConfigFileName=data/muscato/00/config.json", "--NoCleanTemp"]
 Files = [["result.txt", "result_e.txt"],
          ["result.nonmatch.txt.fastq", "result.nonmatch_e.txt"]]
-
-[[Test]]
-Name = "muscato 1 prep"
-Base = "data/muscato/01"
-Command = "muscato_prep_targets"
-Args = ["genes.txt"]
 
 [[Test]]
 Name = "muscato 1"

@@ -20,6 +20,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -36,6 +37,9 @@ var (
 	// If true, data are fasta format, else they follow a format
 	// with one line per sequence, having format id<tab>sequence.
 	fasta bool
+
+	seqoutname string
+	idoutname  string
 
 	logger *log.Logger
 )
@@ -208,34 +212,35 @@ func processFasta(scanner *bufio.Scanner, idout, seqout io.Writer, rev bool) {
 	}
 }
 
-func targets(genefile string, rev bool) {
-
-	var rdr io.ReadCloser
+func targets(rawgenefile, seqoutname, idoutname string, rev bool) {
 
 	// Setup for reading the input file
-	var err error
-	rdr, err = os.Open(genefile)
+	rc, err := os.Open(rawgenefile)
 	if err != nil {
 		panic(err)
 	}
-	defer func(r io.Closer) { r.Close() }(rdr)
+	defer rc.Close()
+	var rdr io.Reader = rc
 
-	// The input file is gzipped
-	ext := filepath.Ext(genefile)
+	// The input file is compressed
+	ext := filepath.Ext(rawgenefile)
 	if strings.ToLower(ext) == ".gz" {
 		logger.Printf("Reading gzipped gene sequence file")
 		rdr, err = gzip.NewReader(rdr)
 		if err != nil {
 			panic(err)
 		}
-		defer func(r io.Closer) { r.Close() }(rdr)
-		genefile = strings.Replace(genefile, ext, "", -1)
-		ext = filepath.Ext(genefile)
+		rawgenefile = strings.Replace(rawgenefile, ext, "", -1)
+		ext = filepath.Ext(rawgenefile)
+	} else if strings.ToLower(ext) == ".sz" {
+		logger.Printf("Reading snappy compressed gene sequence file")
+		rdr = snappy.NewReader(rdr)
+		rawgenefile = strings.Replace(rawgenefile, ext, "", -1)
+		ext = filepath.Ext(rawgenefile)
 	}
 
 	// Setup for writing the sequence output
-	geneoutfile := strings.Replace(genefile, ext, ".txt.sz", 1)
-	gid, err := os.Create(geneoutfile)
+	gid, err := os.Create(seqoutname)
 	if err != nil {
 		panic(err)
 	}
@@ -244,8 +249,7 @@ func targets(genefile string, rev bool) {
 	defer seqout.Close()
 
 	// Setup for writing the identifier output
-	geneidfile := strings.Replace(genefile, ext, "_ids.txt.sz", 1)
-	idwtr, err := os.Create(geneidfile)
+	idwtr, err := os.Create(idoutname)
 	if err != nil {
 		panic(err)
 	}
@@ -287,12 +291,35 @@ func main() {
 		os.Exit(1)
 	}
 
-	genefile := args[0]
+	rawgenefile := args[0]
 
-	gl := strings.ToLower(genefile)
-	if strings.HasSuffix(gl, "fasta") {
-		fasta = true
+	// Produce an output file name
+	dir, file := filepath.Split(rawgenefile)
+	file = "musc_" + file
+	if strings.HasSuffix(strings.ToLower(file), ".gz") {
+		file = file[0 : len(file)-3]
 	}
+	if strings.HasSuffix(strings.ToLower(file), ".sz") {
+		file = file[0 : len(file)-3]
+	}
+	seqoutname = path.Join(dir, file+".sz")
+
+	// Produce an output file name for the ids
+	dir, file = filepath.Split(rawgenefile)
+	file = "musc_ids_" + file
+	if strings.HasSuffix(strings.ToLower(file), ".gz") {
+		file = file[0 : len(file)-3]
+	}
+	if strings.HasSuffix(strings.ToLower(file), ".sz") {
+		file = file[0 : len(file)-3]
+	}
+	idoutname = path.Join(dir, file+".sz")
+
+	os.Stderr.WriteString(fmt.Sprintf("Gene sequence file: %s\n", seqoutname))
+	os.Stderr.WriteString(fmt.Sprintf("Gene ids file: %s\n", idoutname))
+
+	gl := strings.ToLower(rawgenefile)
+	fasta = strings.HasSuffix(gl, "fasta")
 
 	setupLog()
 	if *rev {
@@ -301,6 +328,6 @@ func main() {
 		logger.Printf("Not including reverse complements")
 	}
 
-	targets(genefile, *rev)
+	targets(rawgenefile, seqoutname, idoutname, *rev)
 	logger.Printf("Done")
 }

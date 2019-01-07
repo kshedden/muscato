@@ -16,13 +16,14 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"compress/gzip"
 	"flag"
 	"fmt"
 	"io"
 	"math/rand"
 	"os"
 	"path"
+
+	"github.com/golang/snappy"
 )
 
 var (
@@ -79,6 +80,8 @@ func generateReads() {
 
 func genRand(n int, seq []byte) []byte {
 
+	bases := []byte{'A', 'T', 'G', 'C'}
+
 	if cap(seq) < n {
 		seq = make([]byte, n)
 	}
@@ -86,16 +89,8 @@ func genRand(n int, seq []byte) []byte {
 
 	for j := 0; j < n; j++ {
 		x := rand.Float64()
-		switch {
-		case x < 0.25:
-			seq[j] = 'A'
-		case x < 0.5:
-			seq[j] = 'T'
-		case x < 0.75:
-			seq[j] = 'G'
-		default:
-			seq[j] = 'C'
-		}
+		k := int(4 * x)
+		seq[j] = bases[k]
 	}
 
 	return seq
@@ -105,16 +100,14 @@ func generateGenes() {
 
 	seq := make([]byte, geneLen+readLen)
 
-	fname := path.Join(dir, "genes.txt.gz")
+	fname := path.Join(dir, "genes.txt.sz")
 	fid, err := os.Create(fname)
 	if err != nil {
 		panic(err)
 	}
 	defer fid.Close()
-	zid := gzip.NewWriter(fid)
-	defer zid.Close()
-	w := bufio.NewWriter(zid)
-	defer w.Flush()
+	w := snappy.NewBufferedWriter(fid)
+	defer w.Close()
 
 	fmt.Printf("Writing %d genes\n", numGene)
 	for i := 0; i < numGene; i++ {
@@ -124,28 +117,15 @@ func generateGenes() {
 			panic(err)
 		}
 
+		seq = genRand(geneLen, seq)
+
 		if i < numGene/2 {
-
 			j := i % 10
-			seq = genRand(j, seq)
-			if _, err := w.Write(seq); err != nil {
-				panic(err)
-			}
+			copy(seq[j:len(seq)], reads[j])
+		}
 
-			_, err := io.WriteString(w, reads[j])
-			if err != nil {
-				panic(err)
-			}
-
-			seq = genRand(geneLen-(readLen+j), seq)
-			if _, err := w.Write(seq); err != nil {
-				panic(err)
-			}
-		} else {
-			seq = genRand(geneLen, seq)
-			if _, err := w.Write(seq); err != nil {
-				panic(err)
-			}
+		if _, err := w.Write(seq); err != nil {
+			panic(err)
 		}
 
 		_, err = io.WriteString(w, "\n")

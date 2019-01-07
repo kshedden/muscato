@@ -100,6 +100,7 @@ func genTables() {
 	}
 }
 
+// A pool containing arrays of hashes for use in the Bloom filter.
 var hashPool = sync.Pool{
 
 	New: func() interface{} {
@@ -137,6 +138,7 @@ func buildBloom() error {
 		wc[k] = make(chan []byte, 100)
 		wg.Add(1)
 
+		// A worker for window k
 		go func(k int) {
 
 			defer func() { wg.Done() }()

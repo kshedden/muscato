@@ -27,8 +27,8 @@ import (
 )
 
 // makeReaders creates scanners for reading the source files.  These are
-// needed throughout the execution so there is no need to close the underlying
-// files.
+// needed throughout the execution of this script, so there is no need to
+// close the underlying files.
 func makeReaders(files []string) []*bufio.Scanner {
 
 	var scanners []*bufio.Scanner
@@ -67,16 +67,19 @@ func main() {
 	files := os.Args[4:len(os.Args)]
 	scanners := makeReaders(files)
 
+	// The anticipated number of lines of data
 	nlines, err := strconv.Atoi(os.Args[1])
 	if err != nil {
 		panic(err)
 	}
 
+	// The desired false-positive rate
 	fpr, err := strconv.ParseFloat(os.Args[2], 64)
 	if err != nil {
 		panic(err)
 	}
 
+	// Get the proper size of Bloom filter
 	m, k := bloom.EstimateParameters(uint(nlines), fpr)
 	if mode == "check" {
 		fmt.Printf("n=%d\nk=%d\n", m, k)
@@ -85,24 +88,25 @@ func main() {
 
 	filter := bloom.New(m, k)
 
+	// Indices of the scanners that have not yet been full read.
 	var ix []int
 	for j := range scanners {
 		ix = append(ix, j)
 	}
 
-	var n int
 	for len(ix) > 0 {
 
 		for _, i := range ix {
-
+			// Try to read from the remaining files.
 			if scanners[i].Scan() {
-				n++
 				line := scanners[i].Bytes()
 				if !filter.Test(line) {
+					// It's the first time seeing this line, so print it and remember it
 					fmt.Println(string(line))
 					filter.Add(line)
 				}
 			} else {
+				// One of the scanners reached EOF.
 				var ixnew []int
 				for _, j := range ix {
 					if j != i {
